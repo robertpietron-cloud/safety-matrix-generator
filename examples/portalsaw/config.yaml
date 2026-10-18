@@ -1,0 +1,621 @@
+# =============================================================================
+# Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+# File    : examples/portalsaw/config.yaml
+# Author  : Robert Pietroń
+# Revision: 1.0.0 (2026-10-18)
+# Changes :
+#   1.0.0 (2026-10-18) - Example project configuration of the PortalSaw line
+#                        (matrix rev 1.0-1.4 lineage): zones, effect groups,
+#                        device / output descriptions in PL, EN, FR and DA.
+#                        The PLC export itself is NOT part of the repository.
+# =============================================================================
+# Usage:  safety-matrix analyze PortalSaw.L5K -c examples/portalsaw/config.yaml -o PortalSaw_matrix.xlsx
+# Every key is optional - without a configuration the generator derives zones
+# from routines, groups from output rungs and descriptions from I/O comments.
+document:
+  title: SAFETY MATRIX – PortalSaw (SafetyTask)
+  author: Robert Pietroń
+  revision: '1.5'
+  date: '2026-10-18'
+  revisions:
+  - rev: '1.0'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Pierwsza wersja macierzy z programu PortalSaw20261007.L5K (Group Interlocks, MOTOR, VALVE, metadane, ścieżki, raport).
+      en: First version of the matrix from program PortalSaw20261007.L5K (Group Interlocks, MOTOR, VALVE, metadata, paths, report).
+      fr: Première version de la matrice à partir du programme PortalSaw20261007.L5K (Group Interlocks, MOTOR, VALVE, métadonnées, chemins, rapport).
+      da: Første version af matrixen fra programmet PortalSaw20261007.L5K (Group Interlocks, MOTOR, VALVE, metadata, stier, rapport).
+  - rev: '1.1'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Legendy oznaczeń na arkuszach macierzy i arkusz „Legenda”; autor dokumentu.
+      en: Legends of designations on the matrix sheets and the "Legend" sheet; document author.
+      fr: Légendes des repères sur les feuilles de matrice et feuille « Legend » ; auteur du document.
+      da: Forklaringer af betegnelser på matrixarkene og arket "Legend"; dokumentets forfatter.
+  - rev: '1.2'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Protokół testów walidacyjnych; arkusz funkcji bezpieczeństwa z czasami reakcji (CRTL z L5K) i polami PL; listy rozwijane kodów z automatycznym kolorowaniem;
+        nowe pozycje [DO WERYFIKACJI] dot. RPI modułów.
+      en: Validation test record; safety functions sheet with reaction times (CRTL from L5K) and PL fields; drop-down code lists with automatic colouring; new [TO
+        BE VERIFIED] items on module RPI.
+      fr: Procès-verbal d’essais de validation ; feuille des fonctions de sécurité avec temps de réponse (CRTL du L5K) et champs PL ; listes déroulantes de codes
+        avec coloration automatique ; nouveaux éléments [À VÉRIFIER] sur le RPI des modules.
+      da: Valideringstestprotokol; ark med sikkerhedsfunktioner med reaktionstider (CRTL fra L5K) og PL-felter; rullelister med koder og automatisk farvning; nye
+        punkter [SKAL VERIFICERES] om modulernes RPI.
+  - rev: '1.3'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Przełącznik języka PL / EN (arkusz Start + słownik); dwujęzyczne nazwy arkuszy.
+      en: PL / EN language switch (Start sheet + dictionary); bilingual sheet names.
+      fr: Sélecteur de langue PL / EN (feuille Start + dictionnaire) ; noms de feuilles bilingues.
+      da: Sprogvælger PL / EN (arket Start + ordbog); tosprogede arknavne.
+  - rev: '1.4'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Dodano języki francuski i duński w przełączniku (PL / EN / FR / DA).
+      en: French and Danish added to the language switch (PL / EN / FR / DA).
+      fr: Langues française et danoise ajoutées au sélecteur (PL / EN / FR / DA).
+      da: Fransk og dansk tilføjet til sprogvælgeren (PL / EN / FR / DA).
+  - rev: '1.5'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Macierz wygenerowana uniwersalnym generatorem safety-matrix-generator 1.0.0 (automatyczna analiza, raport i testy).
+      en: Matrix generated with the universal safety-matrix-generator 1.0.0 (automatic analysis, report and tests).
+      fr: Matrice générée avec le générateur universel safety-matrix-generator 1.0.0 (analyse, rapport et essais automatiques).
+      da: Matrix genereret med den universelle safety-matrix-generator 1.0.0 (automatisk analyse, rapport og test).
+languages:
+- pl
+- en
+- fr
+- da
+default_language: pl
+analysis:
+  info_effects:
+  - FromSaftyToProgram[0].6
+  crtl_priority_ms: 1000
+zones:
+- name:
+    pl: 'STREFA 1 : PIŁA / SZLIFIERKA (Saw_I_O – 1734-AENT)'
+    en: 'ZONE 1 : SAW / SANDER (Saw_I_O – 1734-AENT)'
+    fr: 'ZONE 1 : SCIE / PONCEUSE (Saw_I_O – 1734-AENT)'
+    da: 'ZONE 1 : SAV / SLIBEMASKINE (Saw_I_O – 1734-AENT)'
+  devices:
+  - Saw_E_Stop
+  - Sander_E_Stop
+  - Door1_E_Stop
+  - Door2_E_Stop
+  - Door3_E_Stop
+  - Door4_E_Stop
+  - Saw_Door_1
+  - Saw_Door_2
+  - Saw_Door_3
+  - Saw_Door_4
+- name:
+    pl: 'STREFA 2 : PRZENOŚNIKI 4.x PRZED PIŁĄ (rutyna Conveyor)'
+    en: 'ZONE 2 : CONVEYORS 4.x BEFORE SAW (routine Conveyor)'
+    fr: 'ZONE 2 : CONVOYEURS 4.x AVANT LA SCIE (routine Conveyor)'
+    da: 'ZONE 2 : TRANSPORTØRER 4.x FØR SAVEN (rutine Conveyor)'
+  devices:
+  - Conveyor_Door_1_BSaw
+  - Conveyor_Gate1_BSaw
+  - Conveyor_Gate2_BSaw
+- name:
+    pl: 'STREFA 3 : PORTAL 2 (Portal_2_I_O –)'
+    en: 'ZONE 3 : PORTAL 2 (Portal_2_I_O –)'
+    fr: 'ZONE 3 : PORTAL 2 (Portal_2_I_O –)'
+    da: 'ZONE 3 : PORTAL 2 (Portal_2_I_O –)'
+  devices:
+  - Portal_2_E_Stop_Cabinet
+  - Portal_2_E_Stop_Door1
+  - Portal_2_E_Stop_Conveyor
+  - Portal_2_Door_1
+  - Portal_2_Safety_Switch_Door
+  - Portal_2_Safety_Switch_Ladder
+  - Portal_2_Light_1
+  - Portal_2_Light_2
+  - Portal_2_Light_3
+  - Portal_2_SafetyScaner
+- name:
+    pl: 'STREFA 4 : PORTAL 3 / PALOMAT (Portal_3_I_O –)'
+    en: 'ZONE 4 : PORTAL 3 / PALOMAT (Portal_3_I_O –)'
+    fr: 'ZONE 4 : PORTAL 3 / PALOMAT (Portal_3_I_O –)'
+    da: 'ZONE 4 : PORTAL 3 / PALOMAT (Portal_3_I_O –)'
+  devices:
+  - Portal_3_E_Stop
+  - Portal_3_E_Stop_Door23
+  - Portal_3_E_Stop_Palomat
+  - Portal_3_Door_1
+  - RollerGates
+  - Portal_3_Light_1
+  - Portal_3_LC_1
+  - Portal_3_LC_2
+  - Palomat_Light_1
+  - Portal_3_Scanner
+effect_groups:
+- name:
+    pl: PIŁA / SZLIFIERKA
+    en: SAW / SANDER
+    fr: SCIE / PONCEUSE
+    da: SAV / SLIBEMASKINE
+  effects:
+  - E_Stop_Saw
+  - E_Stop_Sander
+  - Saw1:SO.SafeTorqueOff
+  - Saw2:SO.SafeTorqueOff
+  - Saw3:SO.SafeTorqueOff
+  - Saw4:SO.SafeTorqueOff
+  - Saw5:SO.SafeTorqueOff
+  - Saw6:SO.SafeTorqueOff
+  - Saw_Beam:SO.SafeTorqueOff
+- name:
+    pl: PRZENOŚNIKI 4.x
+    en: CONVEYORS 4.x
+    fr: CONVOYEURS 4.x
+    da: TRANSPORTØRER 4.x
+  effects:
+  - Conveyor4_1:SO.SafeTorqueOff
+  - Conveyor4_2:SO.SafeTorqueOff
+  - Conveyor4_3:SO.SafeTorqueOff
+  - Conveyor4_4:SO.SafeTorqueOff
+  - Conveyor4_6:SO.SafeTorqueOff
+  - Conveyor4_7:SO.SafeTorqueOff
+  - Conveyor4_8:SO.SafeTorqueOff
+  - Conveyor4_9:SO.SafeTorqueOff
+  - Conveyor4_10:SO.SafeTorqueOff
+  - Conveyor4_11:SO.SafeTorqueOff
+  - Conveyor4_12:SO.SafeTorqueOff
+  - Conveyor4_13:SO.SafeTorqueOff
+  - Conveyor4_14:SO.SafeTorqueOff
+- name:
+    pl: PORTAL 2
+    en: PORTAL 2
+    fr: PORTAL 2
+    da: PORTAL 2
+  effects:
+  - E_Stop_Portal_2
+  - E_Stop_Portal_2_Conveyor
+  - Portal2_Conveyor2_1:SO.SafeTorqueOff
+  - Portal2_BufferConveyor2_1:SO.SafeTorqueOff
+- name:
+    pl: PORTAL 3 / PALOMAT
+    en: PORTAL 3 / PALOMAT
+    fr: PORTAL 3 / PALOMAT
+    da: PORTAL 3 / PALOMAT
+  effects:
+  - E_Stop_Portal_3
+  - E_Stop_Palomat
+  - E_Stop_Conveyor5
+  - TurnTableP3:SO.SafeTorqueOff
+- name:
+    pl: SYGNAŁ DO PLC2 (INFO – przez std)
+    en: SIGNAL TO PLC2 (INFO – via std)
+    fr: SIGNAL VERS PLC2 (INFO – via std)
+    da: SIGNAL TIL PLC2 (INFO – via std)
+  effects:
+  - FromSaftyToProgram[0].6
+devices:
+  Saw_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop piła  [I/O: ''E_stop saw'']'
+      en: 'E-stop saw  [I/O: ''E_stop saw'']'
+      fr: 'Arrêt d’urgence scie  [E/S : ''E_stop saw'']'
+      da: 'Nødstop sav  [I/O: ''E_stop saw'']'
+  Sander_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: E-stop szlifierka – instrukcja ESTOP z WEJŚCIAMI STAŁYMI 1,1 (niefunkcjonalny)
+      en: E-stop sander – ESTOP instruction with CONSTANT INPUTS 1,1 (non-functional)
+      fr: Arrêt d’urgence ponceuse – instruction ESTOP avec ENTRÉES CONSTANTES 1,1 (non fonctionnel)
+      da: Nødstop slibemaskine – ESTOP-instruktion med KONSTANTE INDGANGE 1,1 (ikke-funktionel)
+  Door1_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop przy drzwiach 1 piły  [I/O: brak komentarza; kom. rungu]'
+      en: 'E-stop at saw door 1  [I/O: no comment; rung comment]'
+      fr: 'Arrêt d’urgence à la porte 1 de la scie  [E/S : sans commentaire ; commentaire de rung]'
+      da: 'Nødstop ved savens dør 1  [I/O: ingen kommentar; rung-kommentar]'
+  Door2_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop przy drzwiach 2 piły  [I/O: brak komentarza]'
+      en: 'E-stop at saw door 2  [I/O: no comment]'
+      fr: 'Arrêt d’urgence à la porte 2 de la scie  [E/S : sans commentaire]'
+      da: 'Nødstop ved savens dør 2  [I/O: ingen kommentar]'
+  Door3_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: E-stop przy drzwiach 3 piły  [moduł slot 25 bez komentarzy]
+      en: E-stop at saw door 3  [slot 25 module without comments]
+      fr: Arrêt d’urgence à la porte 3 de la scie  [module emplacement 25 sans commentaires]
+      da: Nødstop ved savens dør 3  [modul slot 25 uden kommentarer]
+  Door4_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: E-stop przy drzwiach 4 piły  [slot 25 bez kom.; kom. rungu 'DOOR 3']
+      en: E-stop at saw door 4  [slot 25 no comments; rung comment 'DOOR 3']
+      fr: Arrêt d’urgence à la porte 4 de la scie  [empl. 25 sans commentaires ; commentaire de rung 'DOOR 3']
+      da: Nødstop ved savens dør 4  [slot 25 uden kommentarer; rung-kommentar 'DOOR 3']
+  Saw_Door_1:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 1 piły (z ryglem)  [I/O: ''Door 1'']'
+      en: 'Saw door 1 (with guard locking)  [I/O: ''Door 1'']'
+      fr: 'Porte 1 de la scie (avec blocage)  [E/S : ''Door 1'']'
+      da: 'Savens dør 1 (med dørlås)  [I/O: ''Door 1'']'
+  Saw_Door_2:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 2 piły (z ryglem)  [I/O: ''Door 2'']'
+      en: 'Saw door 2 (with guard locking)  [I/O: ''Door 2'']'
+      fr: 'Porte 2 de la scie (avec blocage)  [E/S : ''Door 2'']'
+      da: 'Savens dør 2 (med dørlås)  [I/O: ''Door 2'']'
+  Saw_Door_3:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 3 piły (z ryglem)  [I/O: ''Door 3'']'
+      en: 'Saw door 3 (with guard locking)  [I/O: ''Door 3'']'
+      fr: 'Porte 3 de la scie (avec blocage)  [E/S : ''Door 3'']'
+      da: 'Savens dør 3 (med dørlås)  [I/O: ''Door 3'']'
+  Saw_Door_4:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 4 piły (z ryglem)  [I/O: ''Door 4''] – kanał zdublowany (1-kanałowo)'
+      en: 'Saw door 4 (with guard locking)  [I/O: ''Door 4''] – channel duplicated (single-channel)'
+      fr: 'Porte 4 de la scie (avec blocage)  [E/S : ''Door 4''] – canal dupliqué (monocanal)'
+      da: 'Savens dør 4 (med dørlås)  [I/O: ''Door 4''] – kanal dubleret (enkeltkanal)'
+  Conveyor_Door_1_BSaw:
+    type: SAFETY DOOR
+    description:
+      pl: Drzwi 1 przenośnika przed piłą  [kanały Saw_I_O:3 Pt02/03 opisane 'E_stop sander']
+      en: Door 1 of conveyor before saw  [channels Saw_I_O:3 Pt02/03 labelled 'E_stop sander']
+      fr: Porte 1 du convoyeur avant la scie  [canaux Saw_I_O:3 Pt02/03 libellés 'E_stop sander']
+      da: Dør 1 ved transportøren før saven  [kanaler Saw_I_O:3 Pt02/03 betegnet 'E_stop sander']
+  Conveyor_Gate1_BSaw:
+    type: SAFETY GATE
+    description:
+      pl: Bramka 1 przenośnika przed piłą  [slot 25 bez komentarzy]
+      en: Gate 1 of conveyor before saw  [slot 25 without comments]
+      fr: Portillon 1 du convoyeur avant la scie  [empl. 25 sans commentaires]
+      da: Låge 1 ved transportøren før saven  [slot 25 uden kommentarer]
+  Conveyor_Gate2_BSaw:
+    type: SAFETY GATE
+    description:
+      pl: Bramka 2 przenośnika przed piłą  [slot 25 bez komentarzy]
+      en: Gate 2 of conveyor before saw  [slot 25 without comments]
+      fr: Portillon 2 du convoyeur avant la scie  [empl. 25 sans commentaires]
+      da: Låge 2 ved transportøren før saven  [slot 25 uden kommentarer]
+  Portal_2_E_Stop_Cabinet:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop szafa sterownicza portal 2  [I/O: ''E_stop cabinet portal 2'']'
+      en: 'E-stop control cabinet portal 2  [I/O: ''E_stop cabinet portal 2'']'
+      fr: 'Arrêt d’urgence armoire de commande portal 2  [E/S : ''E_stop cabinet portal 2'']'
+      da: 'Nødstop styreskab portal 2  [I/O: ''E_stop cabinet portal 2'']'
+  Portal_2_E_Stop_Door1:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop przy drzwiach 1 portal 2  [I/O: ''E-stop door 1 portal 2'']'
+      en: 'E-stop at door 1 portal 2  [I/O: ''E-stop door 1 portal 2'']'
+      fr: 'Arrêt d’urgence à la porte 1 portal 2  [E/S : ''E-stop door 1 portal 2'']'
+      da: 'Nødstop ved dør 1 portal 2  [I/O: ''E-stop door 1 portal 2'']'
+  Portal_2_E_Stop_Conveyor:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop przenośnik portal 2  [I/O: ''E-stop conveyor portal 2'']'
+      en: 'E-stop conveyor portal 2  [I/O: ''E-stop conveyor portal 2'']'
+      fr: 'Arrêt d’urgence convoyeur portal 2  [E/S : ''E-stop conveyor portal 2'']'
+      da: 'Nødstop transportør portal 2  [I/O: ''E-stop conveyor portal 2'']'
+  Portal_2_Door_1:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 1 portal 2  [I/O: ''Door 1 portal 2'']'
+      en: 'Door 1 portal 2  [I/O: ''Door 1 portal 2'']'
+      fr: 'Porte 1 portal 2  [E/S : ''Door 1 portal 2'']'
+      da: 'Dør 1 portal 2  [I/O: ''Door 1 portal 2'']'
+  Portal_2_Safety_Switch_Door:
+    type: SAFETY SWITCH
+    description:
+      pl: Wyłącznik bezp. drzwi (moduł slot 12, bez komentarzy)  – tylko Portal_2_Safety_Door_OK
+      en: Safety switch door (module slot 12, no comments)  – only Portal_2_Safety_Door_OK
+      fr: Interrupteur de sécurité porte (module empl. 12, sans commentaires)  – uniquement Portal_2_Safety_Door_OK
+      da: Sikkerhedsafbryder dør (modul slot 12, uden kommentarer)  – kun Portal_2_Safety_Door_OK
+  Portal_2_Safety_Switch_Ladder:
+    type: SAFETY SWITCH
+    description:
+      pl: Wyłącznik bezp. drabiny (moduł slot 12, bez komentarzy)  – tylko Portal_2_Safety_Ladder_OK
+      en: Safety switch ladder (module slot 12, no comments)  – only Portal_2_Safety_Ladder_OK
+      fr: Interrupteur de sécurité échelle (module empl. 12, sans commentaires)  – uniquement Portal_2_Safety_Ladder_OK
+      da: Sikkerhedsafbryder stige (modul slot 12, uden kommentarer)  – kun Portal_2_Safety_Ladder_OK
+  Portal_2_Light_1:
+    type: LIGHT CURTAIN
+    description:
+      pl: 'Kurtyna 1 portal 2 (''First you meet'')  [I/O: ''Light curtain 1 portal 2'']'
+      en: 'Light curtain 1 portal 2 (''First you meet'')  [I/O: ''Light curtain 1 portal 2'']'
+      fr: 'Barrière immatérielle 1 portal 2 (''First you meet'')  [E/S : ''Light curtain 1 portal 2'']'
+      da: 'Lysgardin 1 portal 2 (''First you meet'')  [I/O: ''Light curtain 1 portal 2'']'
+  Portal_2_Light_2:
+    type: LIGHT CURTAIN
+    description:
+      pl: 'Kurtyna 2 portal 2 (przed głowicą, długa)  [I/O: ''Light curtain 2 portal 2'']'
+      en: 'Light curtain 2 portal 2 (before head, long)  [I/O: ''Light curtain 2 portal 2'']'
+      fr: 'Barrière immatérielle 2 portal 2 (devant la tête, longue)  [E/S : ''Light curtain 2 portal 2'']'
+      da: 'Lysgardin 2 portal 2 (før hovedet, langt)  [I/O: ''Light curtain 2 portal 2'']'
+  Portal_2_Light_3:
+    type: LIGHT CURTAIN
+    description:
+      pl: 'Kurtyna suszarka–portal: sygnał z PLC2 przez DANE STANDARDOWE (Saw_PLC2_InputData[1].1/.2)'
+      en: 'Light curtain dryer–portal: signal from PLC2 via STANDARD DATA (Saw_PLC2_InputData[1].1/.2)'
+      fr: 'Barrière séchoir–portal : signal du PLC2 via DONNÉES STANDARD (Saw_PLC2_InputData[1].1/.2)'
+      da: 'Lysgardin tørrer–portal: signal fra PLC2 via STANDARDDATA (Saw_PLC2_InputData[1].1/.2)'
+  Portal_2_SafetyScaner:
+    type: SAFETY SCANNER
+    description:
+      pl: Skaner bezpieczeństwa portal 2 (Keyence SZ-V)  [I/O 5:Pt02/03 bez komentarza]
+      en: Safety scanner portal 2 (Keyence SZ-V)  [I/O 5:Pt02/03 no comment]
+      fr: Scrutateur de sécurité portal 2 (Keyence SZ-V)  [E/S 5:Pt02/03 sans commentaire]
+      da: Sikkerhedsscanner portal 2 (Keyence SZ-V)  [I/O 5:Pt02/03 ingen kommentar]
+  Portal_3_E_Stop:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop panel portal 3  [I/O: ''E_stop panel portal 3'']'
+      en: 'E-stop panel portal 3  [I/O: ''E_stop panel portal 3'']'
+      fr: 'Arrêt d’urgence pupitre portal 3  [E/S : ''E_stop panel portal 3'']'
+      da: 'Nødstop betjeningspanel portal 3  [I/O: ''E_stop panel portal 3'']'
+  Portal_3_E_Stop_Door23:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop drzwi 2+3 portal 3  [I/O: ''E-stop door 2+3'']'
+      en: 'E-stop doors 2+3 portal 3  [I/O: ''E-stop door 2+3'']'
+      fr: 'Arrêt d’urgence portes 2+3 portal 3  [E/S : ''E-stop door 2+3'']'
+      da: 'Nødstop døre 2+3 portal 3  [I/O: ''E-stop door 2+3'']'
+  Portal_3_E_Stop_Palomat:
+    type: EMERGENCY STOP
+    description:
+      pl: 'E-stop palomat  [I/O: ''E-stop palomat'']'
+      en: 'E-stop palomat  [I/O: ''E-stop palomat'']'
+      fr: 'Arrêt d’urgence palomat  [E/S : ''E-stop palomat'']'
+      da: 'Nødstop palomat  [I/O: ''E-stop palomat'']'
+  Portal_3_Door_1:
+    type: SAFETY DOOR
+    description:
+      pl: 'Drzwi 1 portal 3  [I/O: ''Door 1'']'
+      en: 'Door 1 portal 3  [I/O: ''Door 1'']'
+      fr: 'Porte 1 portal 3  [E/S : ''Door 1'']'
+      da: 'Dør 1 portal 3  [I/O: ''Door 1'']'
+  RollerGates:
+    type: SAFETY GATE
+    description:
+      pl: Bramki rolkowe  [13:Pt05 zdublowany, bez komentarza] – tylko sygnał do std
+      en: Roller gates  [13:Pt05 duplicated, no comment] – signal to std only
+      fr: Portillons à rouleaux  [13:Pt05 dupliqué, sans commentaire] – signal vers std uniquement
+      da: Rullelåger  [13:Pt05 dubleret, ingen kommentar] – kun signal til std
+  Portal_3_Light_1:
+    type: LIGHT CURTAIN
+    description:
+      pl: 'Kurtyna 1 portal 3 (muting MutePortal3)  [I/O: ''Light curtain 1 portal 3'']'
+      en: 'Light curtain 1 portal 3 (muting MutePortal3)  [I/O: ''Light curtain 1 portal 3'']'
+      fr: 'Barrière immatérielle 1 portal 3 (muting MutePortal3)  [E/S : ''Light curtain 1 portal 3'']'
+      da: 'Lysgardin 1 portal 3 (muting MutePortal3)  [I/O: ''Light curtain 1 portal 3'']'
+  Portal_3_LC_1:
+    type: LIGHT CURTAIN
+    description:
+      pl: Kurtyna 'LIGHT 2 PORTAL 3 STOP' (wg kom. rungu)  [kanały opisane 'Door 2']
+      en: Light curtain 'LIGHT 2 PORTAL 3 STOP' (per rung comment)  [channels labelled 'Door 2']
+      fr: Barrière immatérielle 'LIGHT 2 PORTAL 3 STOP' (selon commentaire de rung)  [canaux libellés 'Door 2']
+      da: Lysgardin 'LIGHT 2 PORTAL 3 STOP' (iht. rung-kommentar)  [kanaler betegnet 'Door 2']
+  Portal_3_LC_2:
+    type: LIGHT CURTAIN
+    description:
+      pl: Kurtyna 'LIGHT 1 PORTAL 3 REDUCE SPEED' (wg kom. rungu)  [kanały opisane 'Door 3']
+      en: Light curtain 'LIGHT 1 PORTAL 3 REDUCE SPEED' (per rung comment)  [channels labelled 'Door 3']
+      fr: Barrière immatérielle 'LIGHT 1 PORTAL 3 REDUCE SPEED' (selon commentaire de rung)  [canaux libellés 'Door 3']
+      da: Lysgardin 'LIGHT 1 PORTAL 3 REDUCE SPEED' (iht. rung-kommentar)  [kanaler betegnet 'Door 3']
+  Palomat_Light_1:
+    type: LIGHT CURTAIN
+    description:
+      pl: 'Kurtyna palomat (filtr 0 ms)  [I/O: ''Light curtain 2 palomat'']'
+      en: 'Light curtain palomat (filter 0 ms)  [I/O: ''Light curtain 2 palomat'']'
+      fr: 'Barrière immatérielle palomat (filtre 0 ms)  [E/S : ''Light curtain 2 palomat'']'
+      da: 'Lysgardin palomat (filter 0 ms)  [I/O: ''Light curtain 2 palomat'']'
+  Portal_3_Scanner:
+    type: SAFETY SCANNER
+    description:
+      pl: Skaner portal 3 (instr. LC, muting MuteScPortal3)  [13:Pt06/07 bez komentarza]
+      en: Scanner portal 3 (LC instr., muting MuteScPortal3)  [13:Pt06/07 no comment]
+      fr: Scrutateur portal 3 (instr. LC, muting MuteScPortal3)  [13:Pt06/07 sans commentaire]
+      da: Scanner portal 3 (LC-instr., muting MuteScPortal3)  [13:Pt06/07 ingen kommentar]
+effects:
+  E_Stop_Saw:
+    description:
+      pl: Stycznik bezpieczeństwa PIŁA ('EMD saw')
+      en: Safety contactor SAW ('EMD saw')
+      fr: Contacteur de sécurité SCIE ('EMD saw')
+      da: Sikkerhedskontaktor SAV ('EMD saw')
+  E_Stop_Sander:
+    description:
+      pl: Stycznik bezpieczeństwa SZLIFIERKA ('EMD sander')
+      en: Safety contactor SANDER ('EMD sander')
+      fr: Contacteur de sécurité PONCEUSE ('EMD sander')
+      da: Sikkerhedskontaktor SLIBEMASKINE ('EMD sander')
+  Saw1:SO.SafeTorqueOff:
+    description:
+      pl: Piła 1 – PowerFlex 527 STO
+      en: Saw 1 – PowerFlex 527 STO
+      fr: Scie 1 – PowerFlex 527 STO
+      da: Sav 1 – PowerFlex 527 STO
+  Saw2:SO.SafeTorqueOff:
+    description:
+      pl: Piła 2 – PowerFlex 527 STO
+      en: Saw 2 – PowerFlex 527 STO
+      fr: Scie 2 – PowerFlex 527 STO
+      da: Sav 2 – PowerFlex 527 STO
+  Saw3:SO.SafeTorqueOff:
+    description:
+      pl: Piła 3 – PowerFlex 527 STO
+      en: Saw 3 – PowerFlex 527 STO
+      fr: Scie 3 – PowerFlex 527 STO
+      da: Sav 3 – PowerFlex 527 STO
+  Saw4:SO.SafeTorqueOff:
+    description:
+      pl: Piła 4 – PowerFlex 527 STO
+      en: Saw 4 – PowerFlex 527 STO
+      fr: Scie 4 – PowerFlex 527 STO
+      da: Sav 4 – PowerFlex 527 STO
+  Saw5:SO.SafeTorqueOff:
+    description:
+      pl: Piła 5 – PowerFlex 527 STO
+      en: Saw 5 – PowerFlex 527 STO
+      fr: Scie 5 – PowerFlex 527 STO
+      da: Sav 5 – PowerFlex 527 STO
+  Saw6:SO.SafeTorqueOff:
+    description:
+      pl: Piła 6 – PowerFlex 527 STO
+      en: Saw 6 – PowerFlex 527 STO
+      fr: Scie 6 – PowerFlex 527 STO
+      da: Sav 6 – PowerFlex 527 STO
+  Saw_Beam:SO.SafeTorqueOff:
+    description:
+      pl: Belka piły – PowerFlex 527 STO
+      en: Saw beam – PowerFlex 527 STO
+      fr: Poutre de scie – PowerFlex 527 STO
+      da: Savbjælke – PowerFlex 527 STO
+  Conveyor4_1:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.1 – PF527 STO
+      en: Conveyor 4.1 – PF527 STO
+      fr: Convoyeur 4.1 – PF527 STO
+      da: Transportør 4.1 – PF527 STO
+  Conveyor4_2:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.2 – PF527 STO
+      en: Conveyor 4.2 – PF527 STO
+      fr: Convoyeur 4.2 – PF527 STO
+      da: Transportør 4.2 – PF527 STO
+  Conveyor4_3:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.3 – PF527 STO
+      en: Conveyor 4.3 – PF527 STO
+      fr: Convoyeur 4.3 – PF527 STO
+      da: Transportør 4.3 – PF527 STO
+  Conveyor4_4:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.4 – PF527 STO
+      en: Conveyor 4.4 – PF527 STO
+      fr: Convoyeur 4.4 – PF527 STO
+      da: Transportør 4.4 – PF527 STO
+  Conveyor4_6:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.6 – PF527 STO
+      en: Conveyor 4.6 – PF527 STO
+      fr: Convoyeur 4.6 – PF527 STO
+      da: Transportør 4.6 – PF527 STO
+  Conveyor4_7:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.7 – PF527 STO
+      en: Conveyor 4.7 – PF527 STO
+      fr: Convoyeur 4.7 – PF527 STO
+      da: Transportør 4.7 – PF527 STO
+  Conveyor4_8:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.8 – PF527 STO
+      en: Conveyor 4.8 – PF527 STO
+      fr: Convoyeur 4.8 – PF527 STO
+      da: Transportør 4.8 – PF527 STO
+  Conveyor4_9:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.9 – PF527 STO
+      en: Conveyor 4.9 – PF527 STO
+      fr: Convoyeur 4.9 – PF527 STO
+      da: Transportør 4.9 – PF527 STO
+  Conveyor4_10:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.10 – PF527 STO
+      en: Conveyor 4.10 – PF527 STO
+      fr: Convoyeur 4.10 – PF527 STO
+      da: Transportør 4.10 – PF527 STO
+  Conveyor4_11:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.11 – PF527 STO
+      en: Conveyor 4.11 – PF527 STO
+      fr: Convoyeur 4.11 – PF527 STO
+      da: Transportør 4.11 – PF527 STO
+  Conveyor4_12:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.12 – PF527 STO
+      en: Conveyor 4.12 – PF527 STO
+      fr: Convoyeur 4.12 – PF527 STO
+      da: Transportør 4.12 – PF527 STO
+  Conveyor4_13:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.13 – PF527 STO
+      en: Conveyor 4.13 – PF527 STO
+      fr: Convoyeur 4.13 – PF527 STO
+      da: Transportør 4.13 – PF527 STO
+  Conveyor4_14:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 4.14 – PF527 STO
+      en: Conveyor 4.14 – PF527 STO
+      fr: Convoyeur 4.14 – PF527 STO
+      da: Transportør 4.14 – PF527 STO
+  E_Stop_Portal_2:
+    description:
+      pl: 'Wyjście bezp. PORTAL 2 (I/O: ''Portal 2'')'
+      en: 'Safety output PORTAL 2 (I/O: ''Portal 2'')'
+      fr: 'Sortie de sécurité PORTAL 2 (E/S : ''Portal 2'')'
+      da: 'Sikkerhedsudgang PORTAL 2 (I/O: ''Portal 2'')'
+  E_Stop_Portal_2_Conveyor:
+    description:
+      pl: 'Wyjście bezp. przenośniki portal 2 (I/O: ''EMD''; kom. rungu ''OUTPUT EMD PALOMAT'')'
+      en: 'Safety output conveyors portal 2 (I/O: ''EMD''; rung comment ''OUTPUT EMD PALOMAT'')'
+      fr: 'Sortie de sécurité convoyeurs portal 2 (E/S : ''EMD'' ; commentaire de rung ''OUTPUT EMD PALOMAT'')'
+      da: 'Sikkerhedsudgang transportører portal 2 (I/O: ''EMD''; rung-kommentar ''OUTPUT EMD PALOMAT'')'
+  Portal2_Conveyor2_1:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik 2.1 portal 2 – PF527 STO
+      en: Conveyor 2.1 portal 2 – PF527 STO
+      fr: Convoyeur 2.1 portal 2 – PF527 STO
+      da: Transportør 2.1 portal 2 – PF527 STO
+  Portal2_BufferConveyor2_1:SO.SafeTorqueOff:
+    description:
+      pl: Przenośnik buforowy 2.1 portal 2 – PF527 STO
+      en: Buffer conveyor 2.1 portal 2 – PF527 STO
+      fr: Convoyeur tampon 2.1 portal 2 – PF527 STO
+      da: Buffertransportør 2.1 portal 2 – PF527 STO
+  E_Stop_Portal_3:
+    description:
+      pl: 'Wyjście bezp. strefa 2 PORTAL 3 (I/O: ''Zone 2 portal 3'')'
+      en: 'Safety output zone 2 PORTAL 3 (I/O: ''Zone 2 portal 3'')'
+      fr: 'Sortie de sécurité zone 2 PORTAL 3 (E/S : ''Zone 2 portal 3'')'
+      da: 'Sikkerhedsudgang zone 2 PORTAL 3 (I/O: ''Zone 2 portal 3'')'
+  E_Stop_Palomat:
+    description:
+      pl: 'Wyjście bezp. strefa 1 PALOMAT (I/O: ''Zone 1 palomat'')'
+      en: 'Safety output zone 1 PALOMAT (I/O: ''Zone 1 palomat'')'
+      fr: 'Sortie de sécurité zone 1 PALOMAT (E/S : ''Zone 1 palomat'')'
+      da: 'Sikkerhedsudgang zone 1 PALOMAT (I/O: ''Zone 1 palomat'')'
+  E_Stop_Conveyor5:
+    description:
+      pl: 'Wyjście bezp. przenośnik 5 (I/O: brak komentarza)'
+      en: 'Safety output conveyor 5 (I/O: no comment)'
+      fr: 'Sortie de sécurité convoyeur 5 (E/S : sans commentaire)'
+      da: 'Sikkerhedsudgang transportør 5 (I/O: ingen kommentar)'
+  TurnTableP3:SO.SafeTorqueOff:
+    description:
+      pl: Stół obrotowy portal 3 – PF527 STO
+      en: Turntable portal 3 – PF527 STO
+      fr: Table tournante portal 3 – PF527 STO
+      da: Drejebord portal 3 – PF527 STO
+  FromSaftyToProgram[0].6:
+    description:
+      pl: 'Interlock do suszarki: Saw_PLC2_OutputData[1].0 ''PC#2 transport: Area safety relay armed'''
+      en: 'Interlock to dryer: Saw_PLC2_OutputData[1].0 ''PC#2 transport: Area safety relay armed'''
+      fr: 'Verrouillage vers le séchoir : Saw_PLC2_OutputData[1].0 ''PC#2 transport: Area safety relay armed'''
+      da: 'Forrigling til tørreren: Saw_PLC2_OutputData[1].0 ''PC#2 transport: Area safety relay armed'''

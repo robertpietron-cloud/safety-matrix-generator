@@ -1,0 +1,304 @@
+(*********************************************
+  Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+  File    : examples/demo/DemoCell.L5K
+  Author  : Robert Pietroń
+  Revision: 1.0.0 (2026-10-18)
+  Changes :
+    1.0.0 (2026-10-18) - Synthetic demonstration export (fictitious robot /
+                         press cell) used by the tests and the README. It
+                         deliberately contains typical defects: automatic
+                         E-stop reset, single-channel RIN, constant ESTOP
+                         inputs, light-curtain muting and a bypass from
+                         standard control, OR-connected devices, an off-delay
+                         (SS1) path, a direct safety input, an AFI rung and a
+                         constant bridging branch.
+  Import-Export
+  Version   := RSLogix 5000 v33.01
+  Owner     := Robert Pietroń, demo
+  Note:  File encoded in UTF-8.
+**********************************************)
+IE_VER := 2.25;
+CONTROLLER DemoCell (ProcessorType := "5069-L320ERMS2",
+                     Major := 33,
+                     SafetyLocked := No,
+                     SafetyTagMap := " Std_ToSafety=Safety_FromStd",
+                     SafetyLevel := "SIL3/PLe")
+	DATATYPE Dummy (FamilyType := NoFamily)
+		DINT Value;
+	END_DATATYPE
+	MODULE Local (Parent := "Local",
+	              ParentModPortId := 1,
+	              CatalogNumber := "5069-L320ERMS2",
+	              Slot := 0)
+	END_MODULE
+	MODULE SafeIn_1 (Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "5069-IB8S/A",
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 1)
+			CONNECTION SafetyInput (Rate := 10000,
+			                        EventID := 0,
+			                        TimeoutMultiplier := 2,
+			                        NetworkDelayMultiplier := 200,
+			                        ReactionTimeLimit := 40.064,
+			                        Unicast := Yes)
+					InputData (COMMENT.PT00DATA := "-S1 E-stop panel ch.A",
+					           COMMENT.PT01DATA := "-S1 E-stop panel ch.B",
+					           COMMENT.PT02DATA := "-S2 E-stop robot ch.A",
+					           COMMENT.PT03DATA := "-S2 E-stop robot ch.B",
+					           COMMENT.PT04DATA := "-B10 robot door ch.A",
+					           COMMENT.PT05DATA := "-B10 robot door ch.B",
+					           COMMENT.PT06DATA := "-B20 press guard position",
+					           Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE SafeOut_2 (Parent := "Local",
+	                  ParentModPortId := 1,
+	                  CatalogNumber := "5069-OBV8S/A",
+	                  PortLabel := "RxBACKPLANE",
+	                  Slot := 2)
+			CONNECTION SafetyOutput (Rate := 20000,
+			                         EventID := 0,
+			                         TimeoutMultiplier := 2,
+			                         NetworkDelayMultiplier := 200,
+			                         ReactionTimeLimit := 40.064,
+			                         Unicast := Yes)
+					OutputData (COMMENT.PT00DATA := "-K1 main contactor",
+					            COMMENT.PT01DATA := "-K2 main contactor",
+					            COMMENT.PT02DATA := "-Y1 press safety valve",
+					            COMMENT.PT03DATA := "-Y2 press safety valve",
+					            COMMENT.PT04DATA := "-Y10 guard lock release",
+					            COMMENT.PT05DATA := "-H5 service enable",
+					            Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE SafeIn_3 (Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "5069-IB8S/A",
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 3)
+			CONNECTION SafetyInput (Rate := 10000,
+			                        EventID := 0,
+			                        TimeoutMultiplier := 2,
+			                        NetworkDelayMultiplier := 200,
+			                        ReactionTimeLimit := 40.064,
+			                        Unicast := Yes)
+					InputData (COMMENT.PT00DATA := "-K1/-K2 feedback (NC)",
+					           COMMENT.PT01DATA := "-Y1 valve feedback",
+					           COMMENT.PT02DATA := "-Y2 valve feedback",
+					           COMMENT.PT03DATA := "Press standstill",
+					           Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE Remote_IO (Parent := "Local",
+	                  ParentModPortId := 2,
+	                  CatalogNumber := "1734-AENTR/C",
+	                  PortLabel := "ENet",
+	                  Slot := 0,
+	                  NodeAddress := "192.168.1.20")
+	END_MODULE
+	MODULE RemoteSafeIn (Parent := "Remote_IO",
+	                     ParentModPortId := 1,
+	                     CatalogNumber := "1734-IB8S/B",
+	                     PortLabel := "RxBACKPLANE",
+	                     Slot := 1)
+			CONNECTION Input (Rate := 200000,
+			                  EventID := 0,
+			                  TimeoutMultiplier := 4,
+			                  NetworkDelayMultiplier := 400,
+			                  ReactionTimeLimit := 1600,
+			                  Unicast := Yes)
+					InputData (COMMENT.PT00DATA := "-B30 infeed gate",
+					           COMMENT.PT02DATA := "-F40 infeed light curtain OSSD1",
+					           COMMENT.PT03DATA := "-F40 infeed light curtain OSSD2",
+					           COMMENT.PT04DATA := "-B50 press door ch.A",
+					           COMMENT.PT05DATA := "-B50 press door ch.B",
+					           Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE Robot_Drive (Parent := "Local",
+	                    ParentModPortId := 2,
+	                    CatalogNumber := "PowerFlex 527-STO CIP Safety",
+	                    PortLabel := "ENet",
+	                    NodeAddress := "192.168.1.30",
+	                    SafetyEnabled := 1)
+			CONNECTION CSafety_Output (Rate := 20000,
+			                           OutputSize := 1,
+			                           TimeoutMultiplier := 2,
+			                           NetworkDelayMultiplier := 200,
+			                           ReactionTimeLimit := 60.064,
+			                           OutputTagSuffix := "SO")
+					OutputData (Class := Safety) := [1];
+			END_CONNECTION
+			CONNECTION DSafety_Input (Rate := 50000,
+			                          InputSize := 5,
+			                          TimeoutMultiplier := 2,
+			                          NetworkDelayMultiplier := 200,
+			                          ReactionTimeLimit := 200.064,
+			                          InputTagSuffix := "SI")
+					InputData (Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE Press_Drive (Parent := "Local",
+	                    ParentModPortId := 2,
+	                    CatalogNumber := "PowerFlex 755T-STO CIP Safety",
+	                    PortLabel := "ENet",
+	                    NodeAddress := "192.168.1.31",
+	                    SafetyEnabled := 1)
+			CONNECTION CSafety_Output (Rate := 20000,
+			                           OutputSize := 1,
+			                           TimeoutMultiplier := 2,
+			                           NetworkDelayMultiplier := 200,
+			                           ReactionTimeLimit := 60.064,
+			                           OutputTagSuffix := "SO")
+					OutputData (Class := Safety) := [1];
+			END_CONNECTION
+	END_MODULE
+	ADD_ON_INSTRUCTION_DEFINITION TwoOfTwo (Class := Safety,
+	                                        Revision := "1.0",
+	                                        Description := "AND of two zone permissives")
+		PARAMETERS
+			EnableIn : BOOL (Usage := Input, RADIX := Decimal, Required := No, Visible := No) := 1;
+			EnableOut : BOOL (Usage := Output, RADIX := Decimal, Required := No, Visible := No) := 0;
+			In1 : BOOL (Usage := Input, RADIX := Decimal, Required := Yes, Visible := Yes) := 0;
+			In2 : BOOL (Usage := Input, RADIX := Decimal, Required := Yes, Visible := Yes) := 0;
+			Out : BOOL (Usage := Output, RADIX := Decimal, Required := Yes, Visible := Yes) := 0;
+		END_PARAMETERS
+		LOCAL_TAGS
+			Both : BOOL (RADIX := Decimal) := 0;
+		END_LOCAL_TAGS
+		ROUTINE Logic
+				N: XIC(In1)XIC(In2)OTE(Both);
+				N: XIC(Both)OTE(Out);
+		END_ROUTINE
+	END_ADD_ON_INSTRUCTION_DEFINITION
+	TAG
+		Std_ToSafety : DINT[2] (Description := "Standard -> safety bits",
+		            COMMENT[0].0 := "Reset push button -S9 (control desk)",
+		            COMMENT[0].2 := "Infeed override from HMI",
+		            COMMENT[0].3 := "Infeed muting request",
+		            COMMENT[0].4 := "Guard lock release request",
+		            COMMENT[0].5 := "Guard lock release by sequence",
+		            Class := Standard,
+		            RADIX := Decimal) := [0,0];
+		Safety_FromStd : DINT[2] (Class := Safety,
+		            RADIX := Decimal) := [0,0];
+		Safety_ToStd : DINT[2] (COMMENT[0].0 := "Robot zone safe",
+		            COMMENT[0].5 := "Spare switch status",
+		            Class := Safety,
+		            RADIX := Decimal) := [0,0];
+		Reset_PB : BOOL (Description := "Reset push button -S9", Class := Standard, RADIX := Decimal) := 0;
+		HMI_Infeed_Override : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Muting_Request : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Unlock_Request : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Seq_Unlock : BOOL (Class := Standard, RADIX := Decimal) := 0;
+	END_TAG
+	PROGRAM MainProgram (MAIN := "MainRoutine",
+	                     MODE := 0,
+	                     DisableFlag := 0)
+		TAG
+		END_TAG
+		ROUTINE MainRoutine
+				RC: "Bits to the safety task (SafetyTagMap source)";
+				N: XIC(Reset_PB)OTE(Std_ToSafety[0].0);
+				N: XIC(HMI_Infeed_Override)OTE(Std_ToSafety[0].2);
+				N: XIC(Muting_Request)OTE(Std_ToSafety[0].3);
+				N: XIC(Unlock_Request)OTE(Std_ToSafety[0].4);
+				N: XIC(Seq_Unlock)OTL(Std_ToSafety[0].5);
+		END_ROUTINE
+	END_PROGRAM
+	PROGRAM SafetyProgram (Class := Safety,
+	                       MAIN := "MainRoutine",
+	                       MODE := 0,
+	                       DisableFlag := 0)
+		TAG
+			EStop_Panel : EMERGENCY_STOP (Description := "E-stop control panel -S1") := [0];
+			EStop_Robot : EMERGENCY_STOP (Description := "E-stop robot cell -S2") := [0];
+			EStop_Spare : EMERGENCY_STOP (Description := "Spare E-stop (not wired)") := [0];
+			Door_Robot : DCI_STOP (Description := "Robot cell door -B10") := [0];
+			Gate_Infeed : REDUNDANT_INPUT (Description := "Infeed gate -B30") := [0];
+			LC_Infeed : LIGHT_CURTAIN (Description := "Infeed light curtain -F40") := [0];
+			Switch_Unused : REDUNDANT_INPUT (Description := "Spare position switch") := [0];
+			Door_Press : REDUNDANT_INPUT (Description := "Press door -B50") := [0];
+			K1K2_Main : REDUNDANT_OUTPUT (Description := "Main contactors -K1/-K2") := [0];
+			Valve_Press : CONFIGURABLE_ROUT (Description := "Press safety valve -Y1/-Y2") := [0];
+			Press_SS1 : TIMER := [0,2000,0];
+			TwoOfTwo_1 : TwoOfTwo := [0];
+			Reset_Storage : BOOL (RADIX := Decimal) := 0;
+			Reset_Edge : BOOL (RADIX := Decimal) := 0;
+			K1K2_Reset : BOOL (RADIX := Decimal) := 0;
+			Mute_Infeed : BOOL (RADIX := Decimal) := 0;
+			Zone_Robot_OK : BOOL (Description := "Robot zone permissive", RADIX := Decimal) := 0;
+			Zone_Infeed_OK : BOOL (Description := "Infeed zone permissive", RADIX := Decimal) := 0;
+			Zone_Press_OK : BOOL (Description := "Press zone permissive", RADIX := Decimal) := 0;
+			Cell_OK : BOOL (RADIX := Decimal) := 0;
+			Press_Mode : DINT (RADIX := Decimal) := 0;
+			Maintenance_Jumper : BOOL (Description := "Left from commissioning", RADIX := Decimal) := 1;
+			Spare_Bit : BOOL (RADIX := Decimal) := 0;
+			Old_Unused : BOOL (RADIX := Decimal) := 0;
+		END_TAG
+		ROUTINE Inputs
+				RC: "Reset from the control desk (standard push button via SafetyTagMap)";
+				N: XIC(Safety_FromStd[0].0)OSR(Reset_Storage,Reset_Edge);
+				RC: "E-stop control panel";
+				N: ESTOP(EStop_Panel,MANUAL,Local:1:I.Pt00Data,Local:1:I.Pt01Data,Reset_Edge,Reset_Edge);
+				RC: "E-stop robot cell";
+				N: ESTOP(EStop_Robot,AUTOMATIC,Local:1:I.Pt02Data,Local:1:I.Pt03Data,Reset_Edge,Reset_Edge);
+				RC: "Spare E-stop - not wired yet";
+				N: ESTOP(EStop_Spare,MANUAL,1,1,Reset_Edge,Reset_Edge);
+				RC: "Robot cell door";
+				N: DCS(Door_Robot,DOOR_MONITORING,EQUIVALENT_ACTIVE_HIGH,500,MANUAL,MANUAL,Local:1:I.Pt04Data,Local:1:I.Pt05Data,1,Reset_Edge);
+				N: RIN(Gate_Infeed,MANUAL,Remote_IO:1:I.Pt00Data,Remote_IO:1:I.Pt00Data,Reset_Edge,Reset_Edge);
+				N: XIC(Safety_FromStd[0].3)OTE(Mute_Infeed);
+				N: LC(LC_Infeed,MANUAL,Remote_IO:1:I.Pt02Data,Remote_IO:1:I.Pt03Data,20,Mute_Infeed,Reset_Edge,Reset_Edge);
+				N: RIN(Switch_Unused,MANUAL,Remote_IO:1:I.Pt06Data,Remote_IO:1:I.Pt07Data,Reset_Edge,Reset_Edge);
+				N: [XIC(Switch_Unused.O1) ,XIC(Maintenance_Jumper) ]OTE(Safety_ToStd[0].5);
+				N: RIN(Door_Press,MANUAL,Remote_IO:1:I.Pt04Data,Remote_IO:1:I.Pt05Data,Reset_Edge,Reset_Edge);
+				RC: "Zone permissives";
+				N: XIC(EStop_Panel.O1)XIC(EStop_Robot.O1)XIC(Door_Robot.O1)XIC(EStop_Spare.O1)OTE(Zone_Robot_OK);
+				N: [XIC(LC_Infeed.O1) ,XIC(Safety_FromStd[0].2) ]XIC(Gate_Infeed.O1)XIC(EStop_Panel.O1)OTE(Zone_Infeed_OK);
+				N: XIC(EStop_Panel.O1)[XIC(Door_Press.O1) ,EQU(Press_Mode,2) ]OTE(Zone_Press_OK);
+				N: TwoOfTwo(TwoOfTwo_1,Zone_Robot_OK,Zone_Infeed_OK,Cell_OK);
+				N: AFI()OTE(Spare_Bit);
+		END_ROUTINE
+		ROUTINE MainRoutine
+				N: JSR(Inputs,0);
+				N: JSR(Outputs,0);
+		END_ROUTINE
+		ROUTINE Outputs
+				RC: "Main contactors -K1/-K2";
+				N: XIC(Reset_Edge)OTE(K1K2_Reset);
+				N: ROUT(K1K2_Main,NEGATIVE,Zone_Robot_OK,Local:3:I.Pt00Data,Local:3:I.Pt00Data,K1K2_Reset)[XIC(K1K2_Main.O1) OTE(Local:2:O.Pt00Data) ,XIC(K1K2_Main.O2) OTE(Local:2:O.Pt01Data) ];
+				RC: "Press safety valve -Y1/-Y2";
+				N: CROUT(Valve_Press,NEGATIVE,100,Zone_Press_OK,Local:3:I.Pt01Data,Local:3:I.Pt02Data,1,1,Reset_Edge)[XIC(Valve_Press.O1) OTE(Local:2:O.Pt02Data) ,XIC(Valve_Press.O2) OTE(Local:2:O.Pt03Data) ];
+				RC: "Robot drive STO";
+				N: XIC(Robot_Drive:SO.SafeTorqueOff)XIC(Robot_Drive:SI.TorqueDisabled)XIC(Robot_Drive:SI.ResetRequired)OTE(Robot_Drive:SO.Reset);
+				N: [XIC(Reset_Edge) ,XIC(Robot_Drive:SO.SafeTorqueOff) ]XIC(Cell_OK)XIO(Robot_Drive:SI.ConnectionFaulted)OTE(Robot_Drive:SO.SafeTorqueOff);
+				RC: "Press drive - SS1 via off-delay timer";
+				N: XIC(Zone_Press_OK)TOF(Press_SS1,2000,0);
+				N: XIC(Press_SS1.DN)XIC(Local:1:I.Pt06Data)OTE(Press_Drive:SO.SafeTorqueOff);
+				RC: "Guard lock release and service enable";
+				N: [XIC(Safety_FromStd[0].4) XIC(Local:3:I.Pt03Data) ,XIC(Safety_FromStd[0].5) ]OTE(Local:2:O.Pt04Data);
+				N: XIC(EStop_Panel.O1)[XIC(Door_Robot.O1) ,XIC(LC_Infeed.O1) ]OTE(Local:2:O.Pt05Data);
+				RC: "Status to standard control";
+				N: XIC(Zone_Robot_OK)OTE(Safety_ToStd[0].0);
+		END_ROUTINE
+		ROUTINE Old_Logic
+				N: XIC(EStop_Panel.O1)OTE(Old_Unused);
+		END_ROUTINE
+	END_PROGRAM
+	TASK MainTask (Type := CONTINUOUS,
+	               Class := Standard,
+	               Rate := 10,
+	               Priority := 10,
+	               Watchdog := 500)
+			MainProgram;
+	END_TASK
+	TASK SafetyTask (Type := PERIODIC,
+	                 Class := Safety,
+	                 Rate := 20,
+	                 Priority := 10,
+	                 Watchdog := 20)
+			SafetyProgram;
+	END_TASK
+END_CONTROLLER

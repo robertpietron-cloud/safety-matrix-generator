@@ -1,0 +1,81 @@
+# =============================================================================
+# Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+# File    : examples/demo/config.yaml
+# Author  : Robert Pietroń
+# Revision: 1.0.0 (2026-10-18)
+# Changes :
+#   1.0.0 (2026-10-18) - Example configuration for the synthetic DemoCell
+#                        export: document data, languages, zones, output
+#                        groups, a valve output and an information signal.
+# =============================================================================
+# Usage:  safety-matrix analyze examples/demo/DemoCell.L5K -c examples/demo/config.yaml -o DemoCell_matrix.xlsx
+# All keys are optional. Texts are plain strings or {pl:, en:, fr:, da:} dictionaries
+# (a missing language falls back to English).
+
+document:
+  title: SAFETY MATRIX – DemoCell (SafetyTask)
+  author: Robert Pietroń
+  revision: '1.0'
+  date: '2026-10-18'
+  revisions:
+  - rev: '1.0'
+    date: '2026-10-18'
+    author: Robert Pietroń
+    text:
+      pl: Pierwsze wydanie macierzy przykładowej celi.
+      en: First issue of the demo cell matrix.
+      fr: Première édition de la matrice de la cellule de démonstration.
+      da: Første udgave af matrixen for democellen.
+
+languages: [pl, en, fr, da]
+default_language: pl
+
+analysis:
+  info_effects: ['Safety_ToStd[0].0']     # safety bit read by standard control (shown as S codes)
+  include_effects: []                     # force an output into the matrix
+  exclude_effects: []                     # hide an output from the matrix
+  crtl_priority_ms: 1000                  # input CRTL above this value is reported as PRIORITY
+  direct_inputs: true                     # raw safety inputs used directly become causes
+
+zones:
+- name:
+    pl: 'STREFA 1 : PULPIT I ROBOT'
+    en: 'ZONE 1 : CONTROL DESK AND ROBOT'
+    fr: 'ZONE 1 : PUPITRE ET ROBOT'
+    da: 'ZONE 1 : BETJENINGSPULT OG ROBOT'
+  devices: [EStop_Panel, EStop_Robot, EStop_Spare, Door_Robot, Switch_Unused]
+- name:
+    pl: 'STREFA 2 : PODAJNIK'
+    en: 'ZONE 2 : INFEED'
+    fr: 'ZONE 2 : ALIMENTATION'
+    da: 'ZONE 2 : INDFØDNING'
+  devices: [Gate_Infeed, LC_Infeed]
+- name:
+    pl: 'STREFA 3 : PRASA'
+    en: 'ZONE 3 : PRESS'
+    fr: 'ZONE 3 : PRESSE'
+    da: 'ZONE 3 : PRESSE'
+  devices: [Door_Press, 'Local:1:I.Pt06Data']
+
+effect_groups:
+- name: {pl: ROBOT, en: ROBOT, fr: ROBOT, da: ROBOT}
+  effects: [K1K2_Main, 'Robot_Drive:SO.SafeTorqueOff', 'Local:2:O.Pt05Data']
+- name: {pl: PRASA, en: PRESS, fr: PRESSE, da: PRESSE}
+  effects: [Valve_Press, 'Press_Drive:SO.SafeTorqueOff']
+- name: {pl: SYGNAŁY DO STEROWANIA STANDARDOWEGO, en: SIGNALS TO STANDARD CONTROL, fr: SIGNAUX VERS LA COMMANDE STANDARD, da: SIGNALER TIL STANDARDSTYRINGEN}
+  effects: ['Safety_ToStd[0].0']
+
+devices:
+  EStop_Panel:
+    description: {pl: 'Wyłącznik awaryjny pulpitu -S1', en: 'Control desk E-stop -S1', fr: 'Arrêt d’urgence du pupitre -S1', da: 'Nødstop betjeningspult -S1'}
+  Door_Robot:
+    type: SAFETY DOOR                     # type override (otherwise derived from instruction / tag name)
+  'Local:1:I.Pt06Data':
+    id: DI 3.9                            # explicit device ID
+
+effects:
+  Valve_Press:
+    valve: true                           # shown on the VALVE sheet instead of MOTOR
+    description: {pl: 'Zawór bezpieczeństwa prasy -Y1/-Y2', en: 'Press safety valve -Y1/-Y2'}
+  'Robot_Drive:SO.SafeTorqueOff':
+    description: {pl: 'Napęd robota – STO (CIP Safety)', en: 'Robot drive – STO (CIP Safety)'}

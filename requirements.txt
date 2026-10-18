@@ -1,0 +1,10 @@
+# =============================================================================
+# Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+# File    : requirements.txt
+# Author  : Robert Pietroń
+# Revision: 1.0.0 (2026-10-18)
+# Changes :
+#   1.0.0 (2026-10-18) - Runtime dependencies.
+# =============================================================================
+openpyxl>=3.1
+PyYAML>=6.0

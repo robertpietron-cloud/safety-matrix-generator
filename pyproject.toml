@@ -1,0 +1,45 @@
+# =============================================================================
+# Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+# File    : pyproject.toml
+# Author  : Robert Pietroń
+# Revision: 1.0.0 (2026-10-18)
+# Changes :
+#   1.0.0 (2026-10-18) - Package metadata, dependencies and the safety-matrix
+#                        console script.
+# =============================================================================
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safety-matrix-generator"
+version = "1.0.0"
+description = "Safety Matrix (Cause & Effect) generator for Rockwell GuardLogix SafetyTask (Studio 5000 L5K / L5X exports)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Robert Pietroń"}]
+keywords = ["GuardLogix", "safety matrix", "cause and effect", "ISO 13849", "IEC 62061", "Studio 5000", "L5K", "L5X", "PLC"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Manufacturing",
+]
+dependencies = ["openpyxl>=3.1", "PyYAML>=6.0"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+safety-matrix = "safety_matrix.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/robertpietron-cloud/safety-matrix-generator"
+
+[tool.setuptools.packages.find]
+include = ["safety_matrix*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
