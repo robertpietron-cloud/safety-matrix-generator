@@ -3,16 +3,24 @@
 Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 File    : CHANGELOG.md
 Author  : Robert Pietroń
-Revision: 1.0.0 (2026-10-18)
+Revision: 1.1.0 (2026-10-18)
 Changes :
   1.0.0 (2026-10-18) - Change log of the project (with the lineage of the
                        PortalSaw matrix revisions 1.0-1.4).
+  1.1.0 (2026-10-18) - Entry for the manual GitHub Actions workflows.
 =============================================================================
 -->
 
 # Changelog
 
 All notable changes are listed here. Every source file also keeps its own revision and change list in its header.
+
+## Repository – 2026-10-18 (package unchanged, 1.0.0)
+
+* New manual workflow **Generate Safety Matrix** (`.github/workflows/generate.yml`, *Run workflow*): export and
+  configuration from the repository, languages, author, revision, optional failure on critical alarms; summary with the
+  critical alarms on the run page, workbook + JSON as an artifact; inputs passed via environment variables.
+* Workflow **tests** can be started manually (choice of Python versions) and keeps the demo workbook as an artifact.
 
 ## 1.0.0 – 2026-10-18 – first universal release (Robert Pietroń)
 

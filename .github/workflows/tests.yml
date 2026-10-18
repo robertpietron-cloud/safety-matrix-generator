@@ -2,22 +2,34 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : .github/workflows/tests.yml
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-18)
 # Changes :
 #   1.0.0 (2026-10-18) - CI: tests on Python 3.9-3.13, header check, demo run.
+#   1.1.0 (2026-10-18) - Manual start (workflow_dispatch) with a choice of the
+#                        Python versions; the demo workbook is kept as an
+#                        artifact of the run.
 # =============================================================================
 name: tests
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'Python versions to test (JSON list)'
+        required: true
+        default: '["3.9", "3.10", "3.11", "3.12", "3.13"]'
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ${{ fromJSON(inputs.python_versions || '["3.9", "3.10", "3.11", "3.12", "3.13"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,3 +39,11 @@ jobs:
       - run: python -m pytest -q
       - run: python tools/check_headers.py
       - run: safety-matrix analyze examples/demo/DemoCell.L5K -c examples/demo/config.yaml -o demo.xlsx --json demo.json
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12'
+        with:
+          name: demo-workbook
+          path: |
+            demo.xlsx
+            demo.json
+          retention-days: 7

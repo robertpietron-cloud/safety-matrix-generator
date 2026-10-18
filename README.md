@@ -3,14 +3,18 @@
 Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 File    : README.md
 Author  : Robert Pietroń
-Revision: 1.0.0 (2026-10-18)
+Revision: 1.1.0 (2026-10-18)
 Changes :
   1.0.0 (2026-10-18) - First universal release: description, installation,
                        usage, configuration, method, rules, limitations (EN/PL).
+  1.1.0 (2026-10-18) - Manual GitHub Actions runs (Generate Safety Matrix,
+                       tests); status badge.
 =============================================================================
 -->
 
 # Safety Matrix Generator
+
+[![tests](https://github.com/robertpietron-cloud/safety-matrix-generator/actions/workflows/tests.yml/badge.svg)](https://github.com/robertpietron-cloud/safety-matrix-generator/actions/workflows/tests.yml)
 
 **Cause & Effect (Safety Matrix) generator for Rockwell Automation GuardLogix / Compact GuardLogix safety programs.**
 It reads a Studio 5000 Logix Designer export (`.L5K` or `.L5X`), analyses the ladder logic of the **SafetyTask**
@@ -97,6 +101,19 @@ Python API:
 from safety_matrix import generate
 summary = generate('MyLine.L5K', 'MyLine_matrix.xlsx', config_path='myline.yaml', languages=['pl', 'en'])
 ```
+
+## Running on GitHub (manual workflow)
+
+**Actions → Generate Safety Matrix → Run workflow** analyses an export stored in the repository and needs no local
+installation. Inputs: export path (default: the demo), configuration path (empty = automatic layout), languages,
+default language, author, revision, *fail on critical alarms* and how many days to keep the files. The run page shows a
+summary with the critical alarms; the workbook and the JSON are in the **Artifacts** section of the run.
+
+> ⚠️ Artifacts of a **public** repository can be downloaded by other GitHub users. Analyse customer exports only in a
+> **private copy** of the repository (Use this template / private fork) or locally with the CLI.
+
+The **tests** workflow can also be started manually (**Actions → tests → Run workflow**, optional list of Python
+versions); it keeps the demo workbook as an artifact.
 
 ## Configuration (YAML, everything optional)
 
@@ -228,6 +245,11 @@ Zasady analizy: każde skrzyżowanie wynika ze ścieżki logicznej w kodzie (sym
 skanowania, z rozwinięciem JSR i bloków AOI) – nigdy z podobieństwa nazw tagów. EDM i przyciski resetu są metadanymi,
 nie przyczynami. Bity z `SafetyTagMap` traktowane są jako sterowanie standardowe: jeśli mogą obejść funkcję
 bezpieczeństwa, komórka dostaje kod `XB`, a raport – alarm krytyczny.
+
+Na GitHubie: **Actions → Generate Safety Matrix → Run workflow** – podajesz ścieżkę eksportu w repozytorium, konfigurację
+i języki; skoroszyt i JSON są w sekcji *Artifacts* przebiegu, a podsumowanie z alarmami krytycznymi na stronie przebiegu.
+Programy klientów analizuj wyłącznie w **prywatnej kopii** repozytorium albo lokalnie – artefakty publicznego
+repozytorium mogą pobrać inni użytkownicy GitHuba.
 
 Szybki start:
 

@@ -1,0 +1,155 @@
+# =============================================================================
+# Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+# File    : .github/workflows/generate.yml
+# Author  : Robert Pietroń
+# Revision: 1.0.0 (2026-10-18)
+# Changes :
+#   1.0.0 (2026-10-18) - Manually started workflow (Actions -> Generate Safety
+#                        Matrix -> Run workflow): analyses an export stored in
+#                        the repository, writes the summary and the findings to
+#                        the run page and publishes the .xlsx + .json as an
+#                        artifact. Inputs are passed through environment
+#                        variables (no script injection).
+# =============================================================================
+# NOTE: artifacts of a PUBLIC repository can be downloaded by other GitHub users.
+# Run this workflow on customer PLC exports only in a PRIVATE copy of the repository
+# (or use the CLI locally). The default input is the synthetic demo project.
+
+name: Generate Safety Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      input:
+        description: 'Export to analyse (.L5K / .L5X / .docx path in the repository)'
+        required: true
+        default: 'examples/demo/DemoCell.L5K'
+      config:
+        description: 'YAML configuration (path in the repository, empty = automatic layout)'
+        required: false
+        default: 'examples/demo/config.yaml'
+      languages:
+        description: 'Languages, comma separated (pl, en, fr, da)'
+        required: true
+        default: 'pl,en,fr,da'
+      default_language:
+        description: 'Language shown when the workbook opens'
+        required: true
+        default: 'pl'
+        type: choice
+        options: [pl, en, fr, da]
+      author:
+        description: 'Document author (empty = from the configuration)'
+        required: false
+        default: ''
+      revision:
+        description: 'Document revision (empty = from the configuration)'
+        required: false
+        default: ''
+      fail_on_alarm:
+        description: 'Fail the run when critical alarms are found'
+        required: false
+        default: false
+        type: boolean
+      retention_days:
+        description: 'Days to keep the generated files'
+        required: true
+        default: '7'
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IN_FILE: ${{ inputs.input }}
+      IN_CONFIG: ${{ inputs.config }}
+      IN_LANG: ${{ inputs.languages }}
+      IN_DEFAULT: ${{ inputs.default_language }}
+      IN_AUTHOR: ${{ inputs.author }}
+      IN_REVISION: ${{ inputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: pip install .
+
+      - name: Check inputs
+        run: |
+          if [ ! -f "$IN_FILE" ]; then
+            echo "::error::Input file '$IN_FILE' not found in the repository."
+            exit 1
+          fi
+          if [ -n "$IN_CONFIG" ] && [ ! -f "$IN_CONFIG" ]; then
+            echo "::error::Configuration '$IN_CONFIG' not found in the repository."
+            exit 1
+          fi
+          name="$(basename "$IN_FILE")"
+          echo "OUT_BASE=${name%.*}_SafetyMatrix" >> "$GITHUB_ENV"
+
+      - name: Generate Safety Matrix
+        run: |
+          mkdir -p output
+          args=(analyze "$IN_FILE" -o "output/${OUT_BASE}.xlsx" --json "output/${OUT_BASE}.json"
+                --lang "$IN_LANG" --default-lang "$IN_DEFAULT")
+          [ -n "$IN_CONFIG" ] && args+=(-c "$IN_CONFIG")
+          [ -n "$IN_AUTHOR" ] && args+=(--author "$IN_AUTHOR")
+          [ -n "$IN_REVISION" ] && args+=(--revision "$IN_REVISION")
+          safety-matrix "${args[@]}" | tee output/console.txt
+
+      - name: Run summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          base = os.environ.get('OUT_BASE', '')
+          p = pathlib.Path('output') / f'{base}.json'
+          out = []
+          if not p.exists():
+              out.append('No result – see the log of the previous step.')
+          else:
+              d = json.loads(p.read_text(encoding='utf-8'))
+              s = d['source']
+              cells = {}
+              for c in d['cells']:
+                  cells[c['code']] = cells.get(c['code'], 0) + 1
+              sev = {k: [f for f in d['findings'] if f['severity'] == k] for k in ('ALARM', 'DEAD', 'VERIFY')}
+              out += [f"## Safety Matrix – {s['controller']} ({s['file']})", '',
+                      f"{s['processor']} {s['software']} · SafetyTask {(s['safety_task'] or {}).get('period_ms')} ms · "
+                      f"generator {d['generator']['version']}", '',
+                      '| Devices | Outputs in matrix | Cells | Critical alarms | Dead | To verify |',
+                      '|---|---|---|---|---|---|',
+                      f"| {len(d['devices'])} | {sum(1 for e in d['effects'] if e['in_matrix'])} | "
+                      + ', '.join(f'{k} {v}' for k, v in sorted(cells.items()))
+                      + f" | {len(sev['ALARM'])} | {len(sev['DEAD'])} | {len(sev['VERIFY'])} |", '']
+              if sev['ALARM']:
+                  out += ['### Critical alarms', '', '| Routine | Rung | Rule | Element |', '|---|---|---|---|']
+                  out += [f"| {f['routine']} | {f['rungs']} | {f['rule']} | {f['element'].replace('|', '/')} |" for f in sev['ALARM']]
+                  out.append('')
+              out.append('Workbook and JSON: **Artifacts** section of this run.')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+              f.write('\n'.join(out) + '\n')
+          PY
+
+      - name: Upload workbook
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.OUT_BASE }}
+          path: output/
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: error
+
+      - name: Fail on critical alarms
+        if: ${{ inputs.fail_on_alarm }}
+        run: |
+          n=$(python -c "import json,os; d=json.load(open('output/'+os.environ['OUT_BASE']+'.json', encoding='utf-8')); print(sum(f['severity']=='ALARM' for f in d['findings']))")
+          if [ "$n" -gt 0 ]; then
+            echo "::error::$n critical alarm(s) in the Safety Matrix report."
+            exit 2
+          fi
