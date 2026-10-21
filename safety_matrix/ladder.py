@@ -2,13 +2,16 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/ladder.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: neutral-text tokenizer and a
 #                        scan-order walker of the SafetyTask (JSR call tree,
 #                        Add-On Instruction inlining, alias and program-scope
 #                        resolution) producing tag definitions, safety
 #                        instruction instances, timers and diagnostics.
+#   1.1.0 (2026-10-21) - Timer preset '?' (L5K neutral text) is read from the
+#                        PRE member of the TIMER tag / array element / AOI local
+#                        tag; LadderModel.order gives the scan position of rungs.
 # =============================================================================
 """Ladder (RLL) neutral text -> boolean model of the safety task."""
 from __future__ import annotations
@@ -133,6 +136,7 @@ class TimerInfo:
     preset: Optional[float]
     preset_raw: str
     loc: Loc
+    from_tag: bool = False        # preset read from the TIMER tag value (operand '?')
 
 
 @dataclass
@@ -160,6 +164,14 @@ class LadderModel:
         lst = self.defs.get(tag)
         return lst[-1] if lst else None
 
+    def order(self, loc: Optional['Loc']) -> int:
+        """Scan position of the rung of `loc` (AOI part ignored); large number if unknown."""
+        if loc is None:
+            return 10 ** 9
+        if not hasattr(self, '_rank'):
+            self._rank = {l: i for i, l in enumerate(self.rungs)}
+        return self._rank.get(Loc(loc.program, loc.routine, loc.rung), 10 ** 9)
+
 
 _KEYWORDS = {'MANUAL', 'AUTOMATIC', 'NEGATIVE', 'POSITIVE', 'ENABLE', 'DISABLE'}
 
@@ -185,8 +197,24 @@ class LadderBuilder:
             for t in prog.tags:
                 names.setdefault(t, []).append(prog.name)
         self._ambiguous = {t for t, ps in names.items() if len(ps) > 1 or t in project.tags}
+        self._local_tags: Dict[str, object] = {}      # '<instance>.<local tag>' -> Tag of an inlined AOI
 
     # ----------------------------------------------------------------- name resolution
+    def _tag_object(self, resolved: str, ctx: _Ctx):
+        """(Tag, member) for a resolved operand ('Prog\\T[2]', 'T', '<AOI instance>.<local>')."""
+        if resolved in self._local_tags:
+            return self._local_tags[resolved], ''
+        base, member = split_operand(resolved)
+        if '\\' in base:
+            pname, base = base.split('\\', 1)
+            prog = self.p.programs.get(pname)
+            return (prog.tags.get(base) if prog else None), member
+        return ctx.program.tags.get(base) or self.p.tags.get(base), member
+
+    def _timer_preset(self, resolved: str, ctx: _Ctx) -> Optional[float]:
+        t, member = self._tag_object(resolved, ctx)
+        return t.timer_preset(member) if t is not None else None
+
     def res(self, op: str, ctx: _Ctx) -> str:
         op = op.strip()
         if not op or INS.looks_literal(op) or op.startswith(("'", '"')):
@@ -320,11 +348,15 @@ class LadderBuilder:
         if name in INS.TIMERS:
             tag = R(args[0])
             pre_raw = args[1] if len(args) > 1 else ''
+            from_tag = False
             try:
                 pre = float(pre_raw)
             except ValueError:
-                pre = None
-            self.m.timers[tag] = TimerInfo(tag, name, pre, pre_raw, loc)
+                # L5K neutral text shows '?' - the preset is the PRE member of the TIMER tag value
+                pre = self._timer_preset(tag, ctx)
+                if pre is not None:
+                    pre_raw, from_tag = f'{pre:g}', True
+            self.m.timers[tag] = TimerInfo(tag, name, pre, pre_raw, loc, from_tag)
             self._def(tag + '.DN', ('timer', name, pre, cond, tag), ctx, name)
             self._def(tag + '.EN', cond, ctx, name)
             self._def(tag + '.TT', FALSE, ctx, name)
@@ -427,6 +459,7 @@ class LadderBuilder:
             subst[p.name] = actual[p.name] if (p.usage == 'InOut' and p.name in actual) else f'{inst}.{p.name}'
         for lt in aoi.local_tags:
             subst[lt.name] = f'{inst}.{lt.name}'
+            self._local_tags[f'{inst}.{lt.name}'] = lt
         label = f'{aoi.name}({inst})'
         for p in params:
             a = actual.get(p.name, '')

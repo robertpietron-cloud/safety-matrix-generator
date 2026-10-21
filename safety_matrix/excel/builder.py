@@ -2,13 +2,19 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/excel/builder.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release (layout of PortalSaw matrix
 #                        rev 1.4 generalised): Start (language switch), Group
 #                        Interlocks, MOTOR, VALVE, Legend, Safety functions
 #                        (reaction time, PL fields), Test record, Devices,
 #                        Outputs, C&E paths, Validation report, Dictionary.
+#   1.1.0 (2026-10-21) - Channels copied from physical inputs shown as
+#                        'copy ← input'; modules/discrepancy test use the
+#                        physical channel; constant-contact bypass (code N) and
+#                        scan-order lag in the paths, comments and test record;
+#                        scan lag included in the reaction time; ROUT/CROUT
+#                        with a start / seal-in on its own rung = manual restart.
 # =============================================================================
 """Excel workbook generator."""
 from __future__ import annotations
@@ -28,6 +34,7 @@ from ..analysis import MATRIX_CODES, Analysis, Effect
 from ..audit import ALARM, DEAD, VERIFY, Finding
 from ..config import Config, Layout
 from ..i18n import EXCEL_LANG, LANG_NAMES, ML, Tr
+from ..ladder import seal_in_legs
 from ..model import io_parts
 from .base import (AREA_FILL, BOX, CENTER, CODE_STYLE, HDR_FILL, INFILL, LEFT, LEFT_TOP, META_FILL,
                    RESULT_STYLE, TYPE_FILL, VERT, ZONE_FILL, Book, F, IFont, inject_cached_values)
@@ -76,6 +83,11 @@ class MatrixWorkbook:
 
     def loc(self, l) -> str:
         return self.A.loc_label(l)
+
+    def t_nconst(self, tag: str, effs: List[Effect]) -> ML:
+        """Test expectation for outputs on which the device is bridged by a constant contact (code N)."""
+        bits = sorted({b for e in effs for b in self.A.cells[(tag, e.key)].bypass})
+        return self.t('t.exp.nconst', outs=self.compress(effs), bits=', '.join(bits))
 
     def compress(self, effs: List[Effect]) -> ML:
         keys = {e.key for e in effs}
@@ -160,7 +172,12 @@ class MatrixWorkbook:
                 srcs, rr = self.reset_text(rst)
                 m['reset_tag'], m['reset_rr'] = rst, rr
                 m['reset'] = self.tr.ml(f'{rst} [{rr}] ') + self.t('rs.rout_fault')
-                m['restart'] = self.t('restart.rout')
+                r_oi = A.rung(oi.loc)
+                legs = seal_in_legs(r_oi[2], e.instr + '.O1') if r_oi else None
+                start = [op for leg in (legs or []) if not any(x.startswith(e.instr + '.') for x in leg)
+                         for op in leg if not A.is_status(op)]
+                # start / seal-in on the ROUT rung itself: restart needs that start or reset signal
+                m['restart'] = self.t('restart.rout_seal', tags=', '.join(start)) if start else self.t('restart.rout')
                 m['rout'] = oi
             elif e.info:
                 m['edm'], m['reset'], m['restart'] = self.tr.ml('—'), self.tr.ml('—'), self.t('restart.follow')
@@ -197,8 +214,8 @@ class MatrixWorkbook:
             for tag in z.devices:
                 d = A.devices[tag]
                 m = dict(tag=tag, zone=z.name, zno=z.number, id=d.id, type=d.type, desc=Ly.dev_desc[tag], instr=d.instr,
-                         cha=d.ch_a, chb=d.ch_b, routine=d.loc.routine if d.loc else '—', rung=d.loc.rung if d.loc else '—',
-                         kind=d.kind)
+                         cha=d.ch_a + (f' ← {d.src_a}' if d.src_a else ''), chb=d.ch_b + (f' ← {d.src_b}' if d.src_b else ''),
+                         routine=d.loc.routine if d.loc else '—', rung=d.loc.rung if d.loc else '—', kind=d.kind)
                 m['reset_type'] = {True: 'MANUAL', False: 'AUTOMATIC'}.get(d.reset_manual, '—')
                 m['reset_tag'] = d.reset or '—'
                 m['reset_src'], m['reset_rr'] = self.reset_text(d.reset) if d.reset else (self.tr.ml('—'), '')
@@ -244,7 +261,9 @@ class MatrixWorkbook:
         s = ' → '.join(f'{t} [{self.loc(l)}]' for t, l in c.path)
         out = self.tr.ml(s)
         if c.bypass:
-            out = out + '\n' + self.t('w.bypass', bits=', '.join(c.bypass))
+            out = out + '\n' + self.t('w.constbypass' if c.raw == 'N' else 'w.bypass', bits=', '.join(c.bypass))
+        if c.lag:
+            out = out + '\n' + self.t('w.lag', n=c.lag, ms=_g((self.A.task_period or 0) * c.lag))
         if c.conditions:
             out = out + '\n' + self.t('w.conditions', bits=', '.join(c.conditions))
         if c.partners:
@@ -637,10 +656,15 @@ class MatrixWorkbook:
                 bg, fg, _ = CODE_STYLE[c.code]
                 B.put(wp, r, 3, c.code, F(size=8, bold=True, color=fg), PatternFill('solid', fgColor=bg), CENTER)
                 B.put(wp, r, 4, ' → '.join(f'{t} [{self.loc(l)}]' for t, l in c.path), F(size=8), None, LEFT_TOP)
-                extra = '; '.join(f'{b} = {self.A.std_trace(b) or "std"}' for b in c.bypass) or ', '.join(c.partners) \
-                    or ', '.join(c.conditions)
+                if c.raw == 'N':
+                    extra = '; '.join(f'{b} = 1 (const)' for b in c.bypass)
+                else:
+                    extra = '; '.join(f'{b} = {self.A.std_trace(b) or "std"}' for b in c.bypass) or ', '.join(c.partners) \
+                        or ', '.join(c.conditions)
                 if c.delay_ms is not None:
                     extra = (extra + '; ' if extra else '') + f'TOF {_g(c.delay_ms)} ms'
+                if c.lag:
+                    extra = (extra + '; ' if extra else '') + f'+{c.lag} × {_g(self.A.task_period)} ms (scan order)'
                 B.put(wp, r, 5, extra, F(size=8), None, LEFT_TOP)
                 r += 1
         for i, w in enumerate([26, 26, 6, 110, 60], 1):
@@ -890,6 +914,9 @@ class MatrixWorkbook:
             delays = sorted({self.cells[(tag, e.key)].delay_ms for e in hx_t if self.cells[(tag, e.key)].delay_ms is not None})
             if delays:
                 notes.append(self.t('sf.n.delay', ms='/'.join(_g(x) for x in delays)))
+            lag = max((self.cells[(tag, e.key)].lag for e in hx_t), default=0)
+            if lag:
+                notes.append(self.t('sf.n.lag', n=lag, ms=_g(per * lag)))
             outs = self.compress(hx)
             if hxc:
                 outs = outs + (self.tr.ml('; ') if hx else self.tr.ml('')) + self.t('sf.only_xc', effs=', '.join(self.EM[e.key]['label'] for e in hxc))
@@ -900,7 +927,7 @@ class MatrixWorkbook:
                       f"NDM {_g(con.network_delay_multiplier)} %") if (mod and con) else 'n/a'
             vals = [f'SF-{n:02d}', d['id'], tag, self.t('fn.' + d['type']) + ': ' + short, outs, d['cat'] if hx_t else '—', struct, modtxt,
                     con.reaction_time_limit_ms if (con and hx_t) else None, (dev.filter_ms or 0) if hx_t else None,
-                    per + wd if hx_t else None, out_max, None, None, None, None, None, None,
+                    per * (1 + lag) + wd if hx_t else None, out_max, None, None, None, None, None, None,
                     self.tr.join(' ', notes) if notes else '']
             for i, v in enumerate(vals, 1):
                 cell = B.put(wf, fr, i, v, F(size=8, bold=(i in (1, 3))), None, LEFT_TOP if i not in (6, 9, 10, 11, 12, 15) else CENTER)
@@ -992,9 +1019,9 @@ class MatrixWorkbook:
         for tag in self.devs:
             d, dev = self.DM[tag], A.devices[tag]
             hx, xc = self.hits(tag), self.hits(tag, ('XC',))
-            xb_bits = sorted({b for e in self.safe for b in (self.cells.get((tag, e.key)).bypass if self.cells.get((tag, e.key)) else [])})
+            xb_bits = sorted({b for e in self.safe for c in [self.cells.get((tag, e.key))] if c and c.raw == 'XB' for b in c.bypass})
             short = d['desc'].map(lambda s: s.split('  [')[0])
-            two_ch = (dev.kind == 'instr' and dev.ch_a and dev.ch_b and dev.ch_a != dev.ch_b and not dev.const_channels
+            two_ch = (dev.kind == 'instr' and dev.ch_a and dev.ch_b and dev.phys_a != dev.phys_b and not dev.const_channels
                       and not dev.std_channels)
             act = self.tr.ml('1) ') + T('act.' + d['type']) + ': ' + short + '.'
             if xb_bits:
@@ -1002,11 +1029,15 @@ class MatrixWorkbook:
             if d['mute']:
                 act = act + ' ' + T('t.act.mute')
             if two_ch:
-                act = act + ' ' + T('t.act.disc', a=dev.ch_a.replace('Data', ''), b=dev.ch_b.replace('Data', ''))
+                act = act + ' ' + T('t.act.disc', a=dev.phys_a.replace('Data', ''), b=dev.phys_b.replace('Data', ''))
             sto = any(e.kind in DRIVE_KINDS for e in hx)
             codes = {self.code(tag, e.key) for e in self.safe}
-            if 'N' in codes:
+            nconst = [e for e in self.safe if self.code(tag, e.key) == 'N' and not dev.const_channels]
+            hx = [e for e in hx if e not in nconst]
+            if 'N' in codes and dev.const_channels:
                 exp = T('t.exp.n', rung=self.loc(dev.loc))
+            elif nconst and not hx:
+                exp = self.t_nconst(tag, nconst)
             elif hx:
                 exp = T('t.exp.off', outs=self.compress(hx)) + (T('t.exp.sto') if sto else self.tr.ml('')) + T('t.exp.rest')
                 if xc:
@@ -1016,6 +1047,8 @@ class MatrixWorkbook:
                     exp = exp + ' ' + T('t.exp.disc', instr=dev.instr)
                 elif dev.equal_channels and dev.kind == 'instr':
                     exp = exp + ' ' + T('t.exp.single')
+                if nconst:
+                    exp = exp + ' ' + self.t_nconst(tag, nconst)
             elif xc:
                 partners = sorted({p for e in xc for p in self.cells[(tag, e.key)].partners})
                 exp = T('t.exp.xc_only', effs=', '.join(self.EM[e.key]['label'] for e in xc), partners=', '.join(partners))
@@ -1085,7 +1118,7 @@ class MatrixWorkbook:
         adapters = OrderedDict()
         for tag in self.devs:
             dev = A.devices[tag]
-            mod = A.module_of(dev.ch_a) if dev.ch_a else None
+            mod = A.module_of(dev.phys_a) if dev.phys_a else None
             if mod:
                 ad = self.p.top_adapter(mod)
                 adapters.setdefault(ad.name, {'mod': ad, 'devs': [], 'crtl': set()})

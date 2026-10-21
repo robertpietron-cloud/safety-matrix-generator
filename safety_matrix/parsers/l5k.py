@@ -2,7 +2,7 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/parsers/l5k.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: L5K (ASCII export) parser for
 #                        controller, SafetyTagMap, modules + CIP Safety
@@ -10,6 +10,9 @@
 #                        programs, routines (rungs + rung comments), tasks and
 #                        Add-On Instructions.  Tolerates exports pasted into
 #                        Word (blank lines between lines).
+#   1.1.0 (2026-10-21) - ST / FBD / SFC routines are no longer skipped blindly:
+#                        ST code lines and FBD output references are kept for
+#                        the search of writes in the standard code.
 # =============================================================================
 """Parser for Studio 5000 / RSLogix 5000 ``.L5K`` exports."""
 from __future__ import annotations
@@ -314,7 +317,7 @@ def _parse_routine(L: _Lines, header: str) -> Routine:
     r = Routine(name=name, kind=kind, description=attrs.get('Description', ''))
     end_kw = 'END_' + kw
     if kind != 'RLL':
-        L.skip_to(end_kw)
+        _collect_source(L, end_kw, r)
         return r
     pending_comment = ''
     n = 0
@@ -335,6 +338,30 @@ def _parse_routine(L: _Lines, header: str) -> Routine:
         pending_comment = ''
         n += 1
     return r
+
+
+def _collect_source(L: _Lines, end_kw: str, r: Routine):
+    """Keep what the analysis needs from ST / FBD / SFC routines.
+
+    ST code lines (prefixed with an apostrophe in L5K, also inside SFC action bodies) are stored as
+    'ST:<code>', FBD output references (OREF ... Operand := "Tag") as 'W:<Tag>'."""
+    in_oref = False
+    while not L.eof():
+        s = L.next()
+        if s.startswith(end_kw):
+            return
+        if s.startswith("'"):
+            r.source.append('ST:' + s[1:])
+            continue
+        if s.startswith('OREF'):
+            in_oref = True
+        if in_oref:
+            m = re.search(r'Operand\s*:=\s*"([^"]*)"', s)
+            if m:
+                r.source.append('W:' + m.group(1))
+                in_oref = False
+            elif s.startswith('END_OREF'):
+                in_oref = False
 
 
 def _parse_program(L: _Lines, header: str, project: Project) -> Program:

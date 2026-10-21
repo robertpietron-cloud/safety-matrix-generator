@@ -2,12 +2,13 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/logic.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: boolean expression model of
 #                        ladder logic (AND/OR/NOT, edges, timers, comparisons)
 #                        and a deterministic evaluator with leaf classes
 #                        (device, constant, standard-mapped, free).
+#   1.1.0 (2026-10-21) - expr_text(): readable form of an expression.
 # =============================================================================
 """Boolean expressions built from ladder rungs and their evaluation.
 
@@ -72,6 +73,28 @@ def vars_in(e, include_edges=False) -> List[str]:
     if k == 'cmp':
         return [e[1]]
     return []
+
+
+def expr_text(e) -> str:
+    """Readable form: AND = ' · ', OR = '( a ∥ b )', NOT x, ↑(edge), constants 1/0."""
+    k = e[0]
+    if k == 'const':
+        return '1' if e[1] else '0'
+    if k == 'var':
+        return e[1]
+    if k == 'not':
+        return 'NOT ' + expr_text(e[1])
+    if k == 'and':
+        return ' · '.join(expr_text(x) for x in e[1:])
+    if k == 'or':
+        return '(' + ' ∥ '.join(expr_text(x) for x in e[1:]) + ')'
+    if k == 'edge':
+        return '↑(' + expr_text(e[1]) + ')'
+    if k == 'timer':
+        return f'{e[4]}.DN'
+    if k == 'cmp':
+        return e[1]
+    return '?'
 
 
 class Evaluator:

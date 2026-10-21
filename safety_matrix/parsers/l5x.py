@@ -2,12 +2,14 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/parsers/l5x.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: L5X (XML) parser producing the
 #                        same model as the L5K parser (SafetyInfo/SafetyTagMap,
 #                        Modules/Ports/Connections, Tags, Programs, RLL
 #                        routines, Tasks, Add-On Instructions).
+#   1.1.0 (2026-10-21) - ST / FBD / SFC routines keep their code lines and
+#                        output references (search of writes in standard code).
 # =============================================================================
 """Parser for Studio 5000 ``.L5X`` (XML) exports."""
 from __future__ import annotations
@@ -79,6 +81,13 @@ def _routine_from_el(el) -> Routine:
                 description=_text(el.find('Description')))
     if el.find('.//EncodedData') is not None or _a(el, 'EncodedType'):
         r.protected = True
+        return r
+    if r.kind != 'RLL':                       # ST / FBD / SFC: keep code lines and output references
+        for ln in el.iter('Line'):
+            r.source.append('ST:' + (ln.text or ''))
+        for o in el.iter('OREF'):
+            if _a(o, 'Operand'):
+                r.source.append('W:' + _a(o, 'Operand'))
         return r
     for i, rung in enumerate(el.findall('./RLLContent/Rung')):
         num = _a(rung, 'Number')

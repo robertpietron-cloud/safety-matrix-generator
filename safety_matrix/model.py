@@ -2,11 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/model.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: format-neutral project model
 #                        (controller, tasks, programs, routines, rungs, tags,
 #                        modules, CIP Safety connections, SafetyTagMap, AOIs).
+#   1.1.0 (2026-10-21) - split_operand keeps the 'Program\' prefix of program-
+#                        scope operands (bit constants of program tags were not
+#                        recognised); Routine.source keeps the text of ST/FBD/SFC
+#                        routines; Tag.timer_preset(); Module.is_peripheral.
 # =============================================================================
 """Format-neutral model of a Logix Designer project.
 
@@ -35,6 +39,7 @@ class Routine:
     rungs: List[Rung] = field(default_factory=list)
     protected: bool = False       # source-protected (encoded) routine
     description: str = ''
+    source: List[str] = field(default_factory=list)   # ST/FBD/SFC: normalised source lines (see parsers)
 
 
 @dataclass
@@ -74,6 +79,21 @@ class Tag:
             return bool((v >> int(bit)) & 1)
         if self.data_type.upper() == 'BOOL' or v in (0, 1):
             return bool(v)
+        return None
+
+    def timer_preset(self, member: str = '') -> Optional[float]:
+        """PRE of a TIMER tag or of a TIMER array element ('', '[5]') from the initial value [CTL, PRE, ACC]."""
+        v = self.value
+        m = re.fullmatch(r'(?:\[(\d+)\])?', member or '')
+        if v is None or not m:
+            return None
+        try:
+            if m.group(1) is not None:
+                v = v[int(m.group(1))]
+            if isinstance(v, list) and len(v) >= 2 and not isinstance(v[1], list) and v[1] is not None:
+                return float(v[1])
+        except (IndexError, TypeError, ValueError):
+            return None
         return None
 
 
@@ -116,6 +136,11 @@ class Module:
     @property
     def is_safety(self) -> bool:
         return any(c.safety for c in self.connections) or bool(self.safety_enabled)
+
+    @property
+    def is_peripheral(self) -> bool:
+        """Internal sub-module of another device (e.g. '$NoName' drive peripheral of a PowerFlex)."""
+        return self.name.startswith('$') or 'PERIPHERAL' in self.catalog.upper()
 
     def connection(self, kind: str) -> Optional[Connection]:
         """Safety connection of the given kind ('input'/'output'), falling back to any connection of that kind."""
@@ -244,8 +269,9 @@ class Project:
 
 
 def split_operand(op: str):
-    """'Adapter_1:3:I.Pt04Data' -> ('Adapter_1:3:I', '.Pt04Data');  'Tag[2].5' -> ('Tag', '[2].5')."""
-    m = re.match(r'^([A-Za-z_][\w]*(?::[\w]+)*)(.*)$', op)
+    """'Adapter_1:3:I.Pt04Data' -> ('Adapter_1:3:I', '.Pt04Data');  'Tag[2].5' -> ('Tag', '[2].5');
+    program-scope operands keep their prefix: 'Prog\\Tag.0' -> ('Prog\\Tag', '.0')."""
+    m = re.match(r'^((?:[A-Za-z_]\w*\\)?[A-Za-z_][\w]*(?::[\w]+)*)(.*)$', op)
     if not m:
         return op, ''
     return m.group(1), m.group(2)

@@ -2,7 +2,7 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/analysis.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release (method of PortalSaw matrix
 #                        rev 1.0-1.4 generalised): automatic detection of
@@ -13,6 +13,12 @@
 #                        S/SB/SC/SM, rung paths, stop category from off-delay
 #                        timers, reset sources incl. trace into standard code,
 #                        CIP Safety reaction-time data.
+#   1.1.0 (2026-10-21) - Channels copied from inputs followed to the physical
+#                        channel (module, CRTL, checks); scan-order lag per cell;
+#                        constant-contact bypass -> code N; ROUT/CROUT outputs
+#                        grouped also through plain copies; search of writes in
+#                        standard code extended (AOI Output/InOut, data instr.,
+#                        JSR/SBR, unknown instr., aliases, ST/FBD/SFC, consumed).
 # =============================================================================
 """Cause & effect analysis of a GuardLogix safety task."""
 from __future__ import annotations
@@ -22,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from . import instructions as INS
-from .ladder import Instr, LadderModel, Loc, build_ladder, format_condition, seal_in_legs, tokenize
+from .ladder import Instr, LadderModel, Loc, build_ladder, format_condition, seal_in_legs, split_args, tokenize
 from .logic import Evaluator, vars_in
 from .model import Module, Project, Tag, io_parts, split_operand
 
@@ -56,10 +62,24 @@ class Device:
     const_channels: bool = False
     equal_channels: bool = False
     std_channels: bool = False
+    # channels behind intermediate copies (XIC(input) OTE(copy)): final source operand and the copy chain
+    src_a: str = ''
+    src_b: str = ''
+    copies: List[Tuple[str, str, Optional[Loc]]] = field(default_factory=list)   # (channel role, copy tag, rung)
+    channel_lag: int = 0            # copies executed after the instruction in the scan (previous-scan values)
+    computed: List[str] = field(default_factory=list)                         # channels computed by logic
     # filled later
     zone: str = ''
     id: str = ''
     n_eff: int = 0
+
+    @property
+    def phys_a(self) -> str:
+        return self.src_a or self.ch_a
+
+    @property
+    def phys_b(self) -> str:
+        return self.src_b or self.ch_b
 
 
 @dataclass
@@ -88,6 +108,7 @@ class Cell:
     conditions: List[str] = field(default_factory=list)
     partners: List[str] = field(default_factory=list)
     delay_ms: Optional[float] = None
+    lag: int = 0                    # SafetyTask scans of delay caused by the scan order (read before write)
 
 
 @dataclass
@@ -110,7 +131,11 @@ class Analysis:
         self.std_src_of = {v: k for k, v in self.std_map.items()}
         self._tag_cache: Dict[str, Optional[Tag]] = {}
         self.promoted: Dict[str, str] = {}          # leaf name -> 'direct' / 'external'
+        self.init_consts: Dict[str, bool] = {}      # leaves constant only through the tag's initial value
+        self.lags: Dict[Tuple[str, Loc], Dict[str, object]] = {}   # (tag, rung writing it) -> earlier readers/effects
         self.ev = Evaluator(self.lm.defs, self._leaf)
+        # same logic, but initial-value constants are free leaves (to find bypasses by constant contacts)
+        self.ev_nc = Evaluator(self.lm.defs, self._leaf_nc)
         self.devices: Dict[str, Device] = {}
         self.effects: List[Effect] = []
         self.cells: Dict[Tuple[str, str], Cell] = {}
@@ -175,8 +200,15 @@ class Analysis:
             base = base.split('\\')[-1]
             v = t.bit_value(member)
             if v is not None:
+                self.init_consts[name] = v
                 return 'const', v
         return 'free', 'unk'
+
+    def _leaf_nc(self, name: str):
+        k, v = self.ev.leaf_info(name)
+        if k == 'const' and name in self.init_consts:
+            return 'free', 'init'
+        return k, v
 
     def leaf_class(self, name: str) -> str:
         k, v = self.ev.leaf_info(name)
@@ -208,10 +240,52 @@ class Analysis:
                     dev.filter_ms = None
             if dev.mute in ('0',):
                 dev.mute = ''
-            dev.const_channels = bool(ch_a) and all(self._is_constant(c) for c in (ch_a, ch_b) if c)
-            dev.equal_channels = bool(ch_a) and ch_a == ch_b and not dev.const_channels
-            dev.std_channels = any(self.is_std(c) for c in (ch_a, ch_b) if c)
+            self._resolve_channels(dev)
+            srcs = [c for c in (dev.phys_a, dev.phys_b) if c]
+            dev.const_channels = bool(ch_a) and all(self._is_constant(c) for c in srcs)
+            dev.equal_channels = bool(ch_a) and dev.phys_a == dev.phys_b and not dev.const_channels
+            dev.std_channels = any(self.is_std(c) for c in srcs)
             self.devices[tag] = dev
+
+    def copy_source(self, op: str) -> Tuple[str, List[Tuple[str, Loc]]]:
+        """Follow plain copies 'XIC(a) OTE(b)' (single writer, single OTE) back to the source operand.
+
+        Returns (source operand, [(copy tag, rung of the copy), ...]) - the operand itself if it is not a copy."""
+        chain: List[Tuple[str, Loc]] = []
+        cur = op
+        for _ in range(8):
+            if not cur or io_parts(cur) or INS.looks_literal(cur):
+                break
+            lst = self.lm.defs.get(cur)
+            if not lst or len(lst) != 1 or len(self.lm.writes.get(cur, [])) != 1:
+                break
+            expr, loc, instr = lst[0]
+            if instr != 'OTE' or expr[0] != 'var' or loc.aoi:
+                break
+            chain.append((cur, loc))
+            cur = expr[1]
+        return cur, chain
+
+    def _resolve_channels(self, dev: Device):
+        """Channels that are intermediate copies of inputs: source operand, copy rungs and scan-order lag."""
+        for role, ch in (('A', dev.ch_a), ('B', dev.ch_b)):
+            if not ch or INS.looks_literal(ch):
+                continue
+            src, chain = self.copy_source(ch)
+            lag, reader = 0, dev.loc
+            for tag, loc in chain:
+                dev.copies.append((role, tag, loc))
+                if self.lm.order(loc) > self.lm.order(reader):
+                    lag += 1
+                reader = loc
+            dev.channel_lag = max(dev.channel_lag, lag)
+            if chain:
+                if role == 'A':
+                    dev.src_a = src
+                else:
+                    dev.src_b = src
+            if src in self.lm.defs and not io_parts(src) and src not in dev.computed:
+                dev.computed.append(src)
 
     def _is_constant(self, op: str) -> bool:
         if INS.looks_literal(op):
@@ -244,7 +318,8 @@ class Analysis:
             prefix, kind, member = io
             if kind == 'O':
                 expr = self.ev.expr_of(tag)
-                drv = [v.rsplit('.', 1)[0] for v in vars_in(expr) if v.rsplit('.', 1)[0] in self.lm.outputs
+                srcs = [self.copy_source(v)[0] for v in vars_in(expr)]       # ROUT.O1 also through plain copies
+                drv = [v.rsplit('.', 1)[0] for v in srcs if v.rsplit('.', 1)[0] in self.lm.outputs
                        and v.endswith(('.O1', '.O2'))]
                 if drv:
                     r = drv[0]
@@ -299,6 +374,7 @@ class Analysis:
             return
         self.promoted.update(new)
         self.ev = Evaluator(self.lm.defs, self._leaf)
+        self.ev_nc = Evaluator(self.lm.defs, self._leaf_nc)
         for leaf, kind in new.items():
             self.devices[leaf] = Device(tag=leaf, instr='—', loc=self._first_read(leaf), kind=kind,
                                         type='DIRECT SAFETY INPUT' if kind == 'direct' else 'EXTERNAL SAFETY SIGNAL',
@@ -340,16 +416,53 @@ class Analysis:
                                 and not self.ev.value(e.var, dev_off=[D, P], free=B)]
                     if partners:
                         cell = Cell('XC', 'XC', [], partners=sorted(partners, key=list(self.devices).index))
+                    else:
+                        consts = self._const_bypass(e.var, D, B)
+                        if consts:                      # bridged by a constant contact -> never trips
+                            cell = Cell('N', 'N', [], bypass=consts)
                 if cell:
-                    tags = self.ev.find_path(e.var, D) or []
+                    tags = self.ev.find_path(e.var, D) or self.ev_nc.find_path(e.var, D) or []
                     path = [(t, self._def_loc(t)) for t in reversed(tags)]
                     dev = self.devices[D]
                     if dev.kind == 'instr':
                         path = [(D + '.O1', dev.loc)] + [x for x in path if x[0] != D + '.O1']
                     cell.path = path
                     cell.delay_ms = self._path_delay(tags)
+                    cell.lag = self._path_lag(tags, e.key) + dev.channel_lag
                     cell.code = self._post_code(dev, e, cell.raw)
                     self.cells[(D, e.key)] = cell
+
+    def _const_bypass(self, var: str, dev: str, base: Dict[str, bool]) -> List[str]:
+        """Constant contacts (tag initial value 1, never written) without which `dev` would switch `var` off."""
+        consts = {f: self.init_consts[f] for f in self.ev_nc.cone(var)[1] if f in self.init_consts}
+        if not any(consts.values()):
+            return []
+        cur = dict(base, **consts)
+        out = []
+        for c, v in consts.items():
+            if not v:
+                continue
+            f2 = dict(cur, **{c: False})
+            if self.ev_nc.value(var, free=f2) and not self.ev_nc.value(var, dev_off=[dev], free=f2):
+                out.append(c)
+        return sorted(out)
+
+    def _path_lag(self, tags: List[str], effect: str) -> int:
+        """Links of a path whose producing rung executes after the consuming rung (value of the previous scan)."""
+        lag = 0
+        for consumer, producer in zip(tags, tags[1:]):
+            lc, lp = self._def_loc(consumer), self._def_loc(producer)
+            if lc is None or lp is None:
+                continue
+            if self.lm.order(lp) > self.lm.order(lc):
+                lag += 1
+                g = self.lags.setdefault((producer, Loc(lp.program, lp.routine, lp.rung)), {'readers': [], 'effects': []})
+                rl = Loc(lc.program, lc.routine, lc.rung)
+                if rl not in g['readers']:
+                    g['readers'].append(rl)
+                if effect not in g['effects']:
+                    g['effects'].append(effect)
+        return lag
 
     def _post_code(self, dev: Device, e: Effect, code: str) -> str:
         if dev.const_channels:
@@ -512,25 +625,110 @@ class Analysis:
         src = self.std_src_of.get(base)
         return src + rest if src else ''
 
-    def std_writers(self, std_tag: str) -> List[Tuple[str, str, int, str, List[str]]]:
-        """Rungs of the standard programs writing `std_tag`: (program, routine, rung, instr, contacts)."""
+    def std_writers(self, std_tag: str) -> List[Tuple[str, str, Optional[int], str, List[str]]]:
+        """Places in the standard code that write `std_tag` (or the whole tag / structure containing it):
+        (program, routine, rung or None, instruction, contacts of the rung)."""
         if self._std_index is None:
-            idx = {}
-            for prog in self.p.standard_programs():
-                for r in prog.routines.values():
-                    for rung in r.rungs:
-                        try:
-                            toks = tokenize(rung.text)
-                        except ValueError:
-                            continue
-                        contacts = [t.args[0] for t in toks if isinstance(t, Instr) and t.name.upper() in ('XIC', 'XIO') and t.args]
-                        for t in toks:
-                            if isinstance(t, Instr) and t.name.upper() in ('OTE', 'OTL', 'OTU') and t.args:
-                                idx.setdefault(t.args[0], []).append((prog.name, r.name, rung.number, t.name.upper(), contacts))
-                            elif isinstance(t, Instr) and t.name.upper() in ('OSR', 'OSF') and len(t.args) > 1:
-                                idx.setdefault(t.args[1], []).append((prog.name, r.name, rung.number, t.name.upper(), contacts))
-            self._std_index = idx
-        return self._std_index.get(std_tag, [])
+            self._std_index = self._build_std_index()
+        base, rest = split_operand(std_tag.strip())
+        out = []
+        for wrest, entry in self._std_index.get(base, []):
+            if (wrest == rest or not wrest or not rest or rest.startswith(wrest + '.') or rest.startswith(wrest + '[')) \
+                    and entry not in out:
+                out.append(entry)
+        t = self.p.tags.get(base)
+        if t is not None and t.usage == 'Consumed':
+            out.append(('—', t.producer or 'producer', None, 'CONSUMED', []))
+        return out
+
+    def _build_std_index(self) -> Dict[str, list]:
+        """Writes in standard programs: OTE/OTL/OTU, OSR/OSF, data instructions, timers/counters, AOI Output/InOut
+        parameters, JSR return / SBR parameters, unknown instructions (conservatively), ST assignments and calls,
+        FBD output references.  Aliases are resolved; program-scope tags hiding a controller tag are skipped."""
+        idx: Dict[str, list] = {}
+        aois = {n.upper(): a for n, a in self.p.aois.items()}
+        known_read = INS.CONDITIONS | INS.COMPARISONS | INS.NO_EFFECT | INS.FLOW_CONTROL | {'JSR', 'ONS'}
+
+        def add(prog, op, entry):
+            op = (op or '').strip()
+            if not op or INS.looks_literal(op) or op.startswith(("'", '"')) or op == '?':
+                return
+            m = re.match(r'^([A-Za-z_][\w\.\[\]:]*)', op)
+            if not m:
+                return
+            b, rest = split_operand(m.group(1))
+            if '\\' in b:
+                return
+            for _ in range(8):                         # aliases; program tags hide controller tags
+                pt = prog.tags.get(b)
+                if pt is not None:
+                    if not pt.alias_for:
+                        return
+                    a = pt.alias_for
+                else:
+                    ct = self.p.tags.get(b)
+                    if ct is None or not ct.alias_for:
+                        break
+                    a = ct.alias_for
+                b2, r2 = split_operand(a)
+                b, rest = b2, r2 + rest
+            idx.setdefault(b, []).append((rest, entry))
+
+        def call_writes(name, args):
+            """Operands written by an instruction / AOI call with the given (unresolved) arguments."""
+            up = name.upper()
+            aoi = aois.get(up)
+            if aoi is not None:
+                outs = args[:1]                       # the instance (its members are written)
+                for p, a in zip(aoi.call_parameters(), args[1:]):
+                    if p.usage in ('Output', 'InOut'):
+                        outs.append(a)
+                return outs
+            if up in ('OTE', 'OTL', 'OTU'):
+                return args[:1]
+            if up in INS.EDGE_OUTPUTS:
+                return args[1:2]
+            if up in INS.TIMERS or up in INS.COUNTERS:
+                return args[:1]
+            if up in INS.DATA_DEST:
+                i = INS.DATA_DEST[up]
+                return [args[i]] if i is not None and i < len(args) else []
+            if up == 'JSR':
+                try:
+                    return args[2 + int(args[1]):]
+                except (ValueError, IndexError):
+                    return []
+            if up == 'SBR':
+                return list(args)
+            if up in known_read or up in INS.SAFETY_INSTRUCTIONS:
+                return []
+            return list(args)                         # unknown instruction: may write any operand
+
+        for prog in self.p.standard_programs():
+            for r in prog.routines.values():
+                for rung in r.rungs:
+                    try:
+                        toks = tokenize(rung.text)
+                    except ValueError:
+                        continue
+                    contacts = [t.args[0] for t in toks if isinstance(t, Instr) and t.name.upper() in ('XIC', 'XIO') and t.args]
+                    for t in toks:
+                        if isinstance(t, Instr):
+                            for a in call_writes(t.name, t.args):
+                                add(prog, a, (prog.name, r.name, rung.number, t.name.upper(), contacts))
+                lang = r.kind if r.kind in ('ST', 'FBD', 'SFC') else 'ST'
+                for line in r.source:
+                    if line.startswith('W:'):
+                        add(prog, line[2:], (prog.name, r.name, None, lang, []))
+                        continue
+                    code = re.sub(r'"[^"]*"|\'[^\']*\'', '', line[3:]).split('//')[0]
+                    for mm in re.finditer(r'([A-Za-z_][\w\.\[\]:]*)\s*:=', code):
+                        add(prog, mm.group(1), (prog.name, r.name, None, lang, []))
+                    mm = re.match(r'^\s*([A-Za-z_]\w*)\s*\((.*)\)\s*;?\s*$', code)
+                    if mm and mm.group(1).upper() not in ('IF', 'ELSIF', 'WHILE', 'CASE', 'FOR', 'REPEAT', 'UNTIL'):
+                        for a in call_writes(mm.group(1), split_args(mm.group(2))):
+                            add(prog, a, (prog.name, r.name, None, lang, []))
+        return idx
 
     def std_trace(self, bit: str, max_writers: int = 3) -> str:
         """'ToSafty[0].10' -> "ProgramToSafety[0].10 'comment' ← MainProgram/A42 R5 OTE: a 'c', b"."""
@@ -546,16 +744,21 @@ class Analysis:
             parts = []
             for prog, rout, n, ins, contacts in ws[:max_writers]:
                 cs = ', '.join(c + (f" '{' '.join(self.describe(c).split())}'" if self.describe(c) else '') for c in contacts[:4])
-                parts.append(f'{prog}/{rout} R{n} {ins}' + (f': {cs}' if cs else ''))
+                where = f'{prog}/{rout}' + (f' R{n}' if n is not None else '')
+                parts.append(f'{where} {ins}' + (f': {cs}' if cs else ''))
             txt += ' ← ' + '; '.join(parts)
         return txt
 
     # ----------------------------------------------------------------- reaction time
     def input_connection(self, dev: Device):
-        m = self.module_of(dev.ch_a) if dev.ch_a else None
+        m = self.module_of(dev.phys_a) if dev.phys_a else None
         if not m:
             return None, None
         return m, m.connection('input')
+
+    def max_lag(self, dev: str) -> int:
+        """Largest scan-order lag (in SafetyTask periods) over the cells of a device."""
+        return max((c.lag for (d, _), c in self.cells.items() if d == dev), default=self.devices[dev].channel_lag)
 
     def output_connection(self, e: Effect):
         op = e.outputs[0] if e.outputs else e.var

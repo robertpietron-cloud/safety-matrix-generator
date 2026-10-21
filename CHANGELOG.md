@@ -3,17 +3,44 @@
 Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 File    : CHANGELOG.md
 Author  : Robert Pietroń
-Revision: 1.1.0 (2026-10-18)
+Revision: 1.2.0 (2026-10-21)
 Changes :
   1.0.0 (2026-10-18) - Change log of the project (with the lineage of the
                        PortalSaw matrix revisions 1.0-1.4).
   1.1.0 (2026-10-18) - Entry for the manual GitHub Actions workflows.
+  1.2.0 (2026-10-21) - Entry for generator 1.1.0.
 =============================================================================
 -->
 
 # Changelog
 
 All notable changes are listed here. Every source file also keeps its own revision and change list in its header.
+
+## 1.1.0 – 2026-10-21 – second real-program check (Robert Pietroń)
+
+Found while checking a second real GuardLogix project (the export itself is not part of the repository):
+
+* **Fixed – false critical alarms:** "standard bit alone energises a safety output" is now evaluated with every device
+  of the output tripped; a standard permissive in series (`XIC(std) XIC(Area_OK)`) is no longer reported.
+* **Fixed – constant bridge not seen:** program-scope operands (`Program\Tag.0`) are split correctly, so bits of
+  program tags get their initial value; a device bridged by a constant contact (initial value 1, never written) gets
+  code `N` and a critical alarm naming the device (also when a series contact is distributed into the branch).
+* **Fixed – timer presets `?`:** L5K neutral text shows `TON(T,?,?)`; the preset is read from the TIMER tag value,
+  array element or AOI local tag (stop category 1 delay, test record).
+* **Fixed – std writes not found:** the search for writes of SafetyTagMap sources covers AOI Output/InOut parameters,
+  data instructions, timers/counters, JSR return / SBR parameters, unknown instructions (conservatively), aliases,
+  program-scope shadowing, consumed tags, ST assignments and calls, FBD output references and SFC action code.
+* **Fixed – drive peripheral sub-modules** (`$NoName`, `…PERIPHERAL-MODULE`) are not reported as hardwired drives.
+* **New – copied channels:** channels that are plain copies of inputs are followed to the physical channel (module,
+  CRTL, comments, equal-channel / standard / constant checks); copies executed after the instruction add one scan.
+* **New – scan-order lag:** links of a cause→effect path read before they are written in the scan; shown per cell,
+  in the reaction time and as findings.
+* **New – ROUT/CROUT through copies** are grouped as one effect; findings for equal feedback channels and for outputs
+  switched by logic that bypasses the instruction enable (EDM mismatch).
+* **New findings:** SafetyTagMap destination written by the safety logic (and read before the write), outputs always
+  on / energised only on a trip, AFI on a rung without outputs, off-delay timers outside device paths, computed
+  channels; stop category 1 only for timers that lie in a device→output path.
+* JSON: channel sources, copy rungs, scan lag per device and cell. Tests: synthetic `tests/data/ScanCell.L5K`.
 
 ## Repository – 2026-10-18 (package unchanged, 1.0.0)
 

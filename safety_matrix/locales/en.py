@@ -2,10 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/locales/en.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: English texts (reference
 #                        catalogue; every other language falls back to it).
+#   1.1.0 (2026-10-21) - Texts of the new audit rules (SafetyTagMap target written,
+#                        copied / computed channels, scan-order lag, EDM, ROUT
+#                        extra logic, always-on / inverse outputs, AFI without
+#                        outputs, timers outside device paths), constant bypass,
+#                        ROUT/CROUT restart with a start / seal-in on its rung.
 # =============================================================================
 """English texts."""
 
@@ -57,6 +62,8 @@ TEXT = {
     'w.conditions': 'Unless (internal condition / muting): {bits}',
     'w.partners': 'Trips only together with: {devs}',
     'w.delay': 'Off-delay timer in the path: {ms} ms (stop category 1)',
+    'w.constbypass': 'Bridged by a constant contact (initial value 1, never written): {bits}',
+    'w.lag': 'Scan order: +{n} SafetyTask period(s) = {ms} ms (value from the previous scan)',
     'src.const': '{op} = constant {v}',
     'src.never': '{op} – never written (unused)',
     'src.literal': 'constant {v}',
@@ -78,7 +85,9 @@ TEXT = {
     'code.XM.full': 'Trips the output, but an internal safety-task condition (muting instruction, comparison, mode selector, data or '
                     "latched bit) can keep it on. Condition: cell comment / 'C&E paths'. [TO BE VERIFIED]",
     'code.N.short': 'In the logic but non-functional – will never trip  [ALARM]',
-    'code.N.full': 'The device is in the logic path, but the instruction has constant channel inputs – it can never switch the output off. [CRITICAL ALARM]',
+    'code.N.full': 'The device is in the logic path but can never switch the output off: the instruction has '
+                   'constant channel inputs, or the device is bridged by a constant contact (tag with initial value '
+                   '1 that the logic never writes). [CRITICAL ALARM]',
     'code.S.short': 'Info: signal to standard control (not a safety output)',
     'code.S.full': 'Information column: a status passed to STANDARD control (e.g. interlock to another machine). Not a safety output.',
     'code.SB.short': 'As S, with a possible bypass from standard control',
@@ -235,6 +244,7 @@ TEXT = {
     'rs.none': 'none (no seal-in – follows the logic)',
     'rs.so_reset': '  + SO.Reset rung ({rung})',
     'restart.rout': 'AUTO – the ROUT/CROUT output follows Enable (device reset = restart)',
+    'restart.rout_seal': 'MANUAL – the ROUT/CROUT rung has a start / seal-in: restart only with {tags}',
     'restart.auto': 'AUTO – level signal in the seal-in branch: {tags}',
     'restart.manual': 'MANUAL – reset edge + seal-in',
     'restart.follow': 'follows the logic',
@@ -291,9 +301,11 @@ TEXT = {
     'f.equal_channels': 'Both channels of {instr} {tag} point to the same input {ch} – no redundancy and no discrepancy detection; the function is effectively '
                         'single-channel ({n} safety output(s) affected).',
     'f.equal_channels.rec': 'Wire channel B to a separate input and correct the operand; verify the sensor wiring.',
-    'f.afi': 'AFI (Always False) instruction in {rung} – the rung is permanently disabled.',
+    'f.afi': 'AFI (Always False) instruction in {rung} – the rung is permanently disabled; it permanently switches '
+             'off: {outputs}.',
     'f.afi.rec': 'Remove the AFI or document why the rung is disabled; check that no safety function depends on the rung.',
-    'f.const_branch': 'A branch made only of constant contacts ({consts}) is always true and bridges the logic of {tag}.',
+    'f.const_branch': 'A branch made only of constant contacts ({consts}) is always true and bridges the logic of '
+                      '{tag}. Bridged devices: {devices}.',
     'f.const_branch.rec': 'Remove the bridging branch or replace the constant with a real safety condition.',
     'f.reset_std_auto': 'Reset bit {bit} is generated automatically (latched in the standard sequence or written by the SafetyTask itself) and resets: {resets}. '
                         'Source: {src}. Reset without a deliberate operator action.',
@@ -317,10 +329,12 @@ TEXT = {
     'f.aux_no_device': 'Safety output {tag} is not switched off by any safety input device (logic: {expr}) – e.g. guard-lock release or a signal lamp. '
                        'Check the function and its conditions.',
     'f.aux_not_energized': 'Safety output {tag} is not energised in the healthy state (logic: {expr}) – not shown in the matrix; check the function.',
-    'f.crtl_inputs': "Safety inputs of {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier {ndm} % → Input CRTL {crtl} ms. "
-                     'Worst-case reaction of the logic alone (input CRTL + LC filter + task period {period} ms + watchdog {watchdog} ms + output CRTL) '
-                     "up to {total} ms – excluding sensor and stopping times. Devices: {devices}. Verify against the risk assessment and the safety "
-                     "distances (ISO 13855); details: 'Safety functions' sheet.",
+    'f.crtl_inputs': 'Safety inputs of {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier '
+                     '{ndm} % → Input CRTL {crtl} ms. Worst-case reaction of the logic alone (input CRTL + LC filter '
+                     '+ task period {period} ms + watchdog {watchdog} ms + output CRTL) up to {total} ms – excluding '
+                     'sensor and stopping times. Devices: {devices}. Verify against the risk assessment and the '
+                     "safety distances (ISO 13855); details: 'Safety functions' sheet. Included scan-order lag: "
+                     '{lags} × task period.',
     'f.crtl_outputs': 'Safety output modules {modules}: RPI {rpi} ms, TM {tm}, NDM {ndm} % → Output CRTL {crtl} ms.',
     'f.crtl_drives': 'CIP Safety drive output connections: RPI {rpi} ms, TM {tm}, NDM {ndm} % → CRTL {crtl} ms for: {modules}.',
     'f.osf_ote': 'OSF/OSR and OTE on the same tag {tag} in one rung – the OTE overwrites the edge pulse with the level (level reset instead of edge reset).',
@@ -332,7 +346,8 @@ TEXT = {
                           'cannot occur while a person is inside the hazard zone (ISO 13849-1 §5.2.2, ISO 14119).',
     'f.reset_std': 'Reset from standard control: bit {bit} resets {resets}. Source: {src}. Check the location and visibility of the reset button '
                    '(manual reset outside the hazard zone, ISO 13849-1 §5.2.2).',
-    'f.std_not_written': 'Standard-mapped bit {bit} is read in the SafetyTask but no write to {src} was found in the standard code.',
+    'f.std_not_written': 'Standard-mapped bit {bit} is read in the SafetyTask but no write to {src} was found in the '
+                         'standard code. Only an HMI/SCADA, a MSG instruction or an online change could set it.',
     'f.missing_comments': 'No I/O channel comments on {module} ({channels}) – assignment of {who} based only on tag names.',
     'f.free_cmp': 'Comparison {leaf} in the logic of {effects} – assumed {value} in the healthy state; outcome depends on data.',
     'f.free_data': 'Data-dependent bit {leaf} (written by a data instruction) in the logic of {effects} – assumed {value} in the healthy state.',
@@ -352,11 +367,70 @@ TEXT = {
     'f.jsr_conditional': 'Routine {routine} is called conditionally – outputs in it keep their state while it is not executed.',
     'f.pair_mismatch': 'The outputs {a} and {b} of {tag} have different causes in the logic – check the wiring of both channels.',
     'f.loads': 'The code does not define what is supplied from the outputs {outputs} (contactors / hardwired STO / valves) – confirm in the electrical schematics.',
-    'f.stop_cat0': 'No off-delay timers in the SafetyTask → all functions are stop category 0 (STO / contactor drop-out). For high-inertia machines '
-                   'consider SS1 according to the risk assessment.',
-    'f.stop_cat1': 'Off-delay timers in the SafetyTask: {timers} – the outputs behind them stop with category 1 (SS1); check the delay against the stopping time.',
+    'f.stop_cat0': 'No off-delay timer lies in a safety device → output path, so all safety functions are stop '
+                   'category 0 (STO / contactor drop-out). For high-inertia machines consider SS1 according to the '
+                   'risk assessment.',
+    'f.stop_cat1': 'Off-delay timers in safety device → output paths: {timers} – the outputs {effects} stop with '
+                   'category 1 (SS1); check the delay against the stopping time.',
     'f.forces': 'Forces are not stored in the export – check the Forces tab for safety tags online in Studio 5000.',
     'f.completeness': 'Analysed input {src}; executed routines and rung counts: {routines}. Confirm the rung counts in Studio 5000.',
+    'f.afi_noop': 'AFI (Always False) in {rung} on a rung without output instructions (e.g. only NOP) – no effect on '
+                  'the logic today, but it is a disabled rung in the safety task.',
+    'f.afi_noop.rec': 'Remove the rung or document its purpose; make sure no safety function was meant to be there.',
+    'f.map_written': 'Safety tag {tag} is the destination of the SafetyTagMap (from standard {src}) and is also '
+                     'written by the safety logic at {writers}. The standard value is copied at the start of every '
+                     'safety task scan and then overwritten – the mapping has no effect and is misleading.',
+    'f.map_written.rec': 'Remove the mapping or use a separate safety tag for the logic result; document which '
+                         'source is intended.',
+    'f.map_read_before_write': 'Safety tag {tag} is mapped from standard {src} (SafetyTagMap) and written by the '
+                               'safety logic at {writers}, but it is read earlier in the scan at {readers} – there '
+                               'its value comes from STANDARD control.',
+    'f.map_read_before_write.rec': 'Remove the mapping or move the safety write before every read; the standard '
+                                   'value must not influence the safety function.',
+    'f.aux_always_on': 'Safety output {tag} is energised unconditionally (logic: {expr}) – no safety device can '
+                       'switch it off (e.g. sensor supply or test source).',
+    'f.aux_always_on.rec': 'Confirm in the schematics what is supplied from this output; no hazardous load may be '
+                           'connected to it.',
+    'f.aux_inverse': 'Safety output {tag} is energised only when {devices} trip (logic: {expr}) – indicator lamp, '
+                     'guard-lock release or similar, not a safety-function output; not shown in the matrix.',
+    'f.aux_inverse.rec': 'Check the function; if it releases a guard lock, verify the conditions (standstill, '
+                         'delay).',
+    'f.channel_copy': 'Channels of these instructions are intermediate tags copied from physical inputs (XIC(input) '
+                      'OTE(copy)): {devices}. The copies are written before the instruction in the scan; the matrix, '
+                      'CRTL and I/O comments use the physical inputs.',
+    'f.channel_copy.rec': 'Keep the copy rungs free of additional conditions; using the physical inputs directly in '
+                          'the instruction is clearer.',
+    'f.channel_copy_late': 'Channels of these instructions are intermediate tags copied from physical inputs, and '
+                           'the copy rungs execute AFTER the instruction in the scan: {devices}. The instruction '
+                           'evaluates the input state of the previous scan – the reaction time grows by one '
+                           'SafetyTask period ({period} ms).',
+    'f.channel_copy_late.rec': 'Move the copy rungs before the instructions (JSR order in MainRoutine) or use the '
+                               'physical inputs directly; include the extra period in the reaction time.',
+    'f.channel_logic': 'Channel {ch} of {instr} {tag} is not a physical input but a tag computed by the logic: '
+                       '{expr}. Redundancy and discrepancy monitoring of the instruction then apply to this logic, '
+                       'not to the sensor.',
+    'f.channel_logic.rec': 'Connect the physical channels directly to the instruction or justify the logic in the '
+                           'safety concept.',
+    'f.scan_lag': 'Tag {tag} is written at {writer} but read earlier in the scan at {readers} – these rungs use the '
+                  'value of the previous scan: +1 SafetyTask period ({period} ms) in the reaction time of: '
+                  '{effects}.',
+    'f.scan_lag.rec': 'Change the routine / rung order so that the tag is written before it is read, or include the '
+                      'extra period in the reaction time.',
+    'f.edm_same_channel': 'Both feedback inputs of {instr} {tag} use the same channel {ch} – the auxiliary contacts '
+                          'of both contactors are wired in series into one input; a fault of that single input or '
+                          'wire is not detected by the EDM.',
+    'f.edm_same_channel.rec': 'Check that this meets the required category / PL; otherwise wire each feedback to its '
+                              'own input.',
+    'f.rout_extra_logic': 'The outputs {outputs} of {instr} {tag} are also switched off by {devices}, which do not '
+                          'act through the {instr} enable. When only these trip, the outputs drop while {tag}.O1 '
+                          'stays on – the feedback no longer matches, {tag} reports a feedback fault (reset '
+                          'required) and the EDM does not monitor this switch-off path.',
+    'f.rout_extra_logic.rec': 'Include these conditions in the enable of {tag} so that every switch-off path passes '
+                              'through the monitored instruction.',
+    'f.timer_other': 'Off-delay timer {tag} ({instr}, preset {preset} ms) is not in a safety device → output path: '
+                     'it delays the condition {cond}; used by: {users}. This is not a stop category 1 of a safety '
+                     'function (e.g. a guard-lock or release delay).',
+    'f.timer_other.rec': 'If it releases a guard lock, verify the delay against the run-down time of the machine.',
     # ------------------------------------------------------------------ Legend sheet
     'l.title': 'LEGEND OF DESIGNATIONS AND METHOD',
     'l.s1': '1. MATRIX CELL CODES', 'l.s2': '2. READING THE MATRIX', 'l.s3': '3. DEVICE DESIGNATIONS (ID)', 'l.s4': '4. ZONES',
@@ -413,6 +487,7 @@ TEXT = {
     'sf.n.crtl': 'Input CRTL ≥ {ms} ms – see the Validation report (PRIORITY).',
     'sf.n.std': 'Signal from standard control – reaction time undefined.',
     'sf.n.delay': 'Off-delay in the path: {ms} ms (stop category 1) – add to the reaction time.',
+    'sf.n.lag': 'The scan order adds {n} SafetyTask period(s) ({ms} ms) – included in the task column.',
     'sf.only_xc': 'only with partner (XC): {effs}',
     'sf.cf_note': 'Red total: > 1000 ms; yellow: 500–1000 ms (conditional formatting). The total is calculated automatically after entering the device delays.',
     # ------------------------------------------------------------------ Test record
@@ -427,6 +502,8 @@ TEXT = {
     't.act.mute': 'Muting inactive.',
     't.act.disc': '2) Discrepancy test: with the device OK open only channel A ({a}), then only channel B ({b}).',
     't.exp.n': 'NO trip – the instruction has constant inputs in the code ({rung}); outputs stay on. [CRITICAL ALARM]',
+    't.exp.nconst': 'NO trip for {outs} – the device is bridged by the constant contact {bits}; these outputs stay '
+                    'on. [CRITICAL ALARM]',
     't.exp.off': '1) Switched off: {outs}',
     't.exp.sto': ' (drives: :SI.TorqueDisabled = 1)',
     't.exp.rest': '. Other outputs unchanged.',

@@ -2,10 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/locales/fr.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: textes français (mêmes clés
 #                        que le catalogue anglais).
+#   1.1.0 (2026-10-21) - Texts of the new audit rules (SafetyTagMap target written,
+#                        copied / computed channels, scan-order lag, EDM, ROUT
+#                        extra logic, always-on / inverse outputs, AFI without
+#                        outputs, timers outside device paths), constant bypass,
+#                        ROUT/CROUT restart with a start / seal-in on its rung.
 # =============================================================================
 """Textes français."""
 
@@ -57,6 +62,8 @@ TEXT = {
     'w.conditions': 'Sauf si (condition interne / muting) : {bits}',
     'w.partners': 'Déclenche seulement avec : {devs}',
     'w.delay': 'Temporisation au repos dans le chemin : {ms} ms (catégorie d’arrêt 1)',
+    'w.constbypass': 'Ponté par un contact constant (valeur initiale 1, jamais écrit) : {bits}',
+    'w.lag': 'Ordre d’exécution : +{n} période(s) de SafetyTask = {ms} ms (valeur du cycle précédent)',
     'src.const': '{op} = constante {v}',
     'src.never': '{op} – jamais écrit (inutilisé)',
     'src.literal': 'constante {v}',
@@ -78,7 +85,9 @@ TEXT = {
     'code.XM.full': 'Coupe la sortie, mais une condition interne de la SafetyTask (instruction de muting, comparaison, sélecteur de mode, données ou bit '
                     'mémorisé) peut la maintenir. Condition : commentaire de la cellule / « Chemins C&E ». [À VÉRIFIER]',
     'code.N.short': 'Dans la logique, mais non fonctionnel – ne déclenchera jamais  [ALARME]',
-    'code.N.full': 'L’appareil est dans le chemin logique, mais l’instruction a des entrées de voies constantes – elle ne coupera jamais la sortie. [ALARME CRITIQUE]',
+    'code.N.full': 'L’appareil est dans le chemin logique mais ne peut jamais couper la sortie : l’instruction a des '
+                   'entrées de voies constantes, ou l’appareil est ponté par un contact constant (tag de valeur '
+                   'initiale 1 jamais écrit par la logique). [ALARME CRITIQUE]',
     'code.S.short': 'Info : signal vers la commande std (pas une sortie de sécurité)',
     'code.S.full': 'Colonne d’information : état transmis à la commande STANDARD (p. ex. verrouillage vers une autre machine). Ce n’est pas une sortie de sécurité.',
     'code.SB.short': 'Comme S, avec contournement possible par la commande std',
@@ -237,6 +246,8 @@ TEXT = {
     'rs.none': 'aucun (pas d’auto-maintien – suit la logique)',
     'rs.so_reset': '  + rung SO.Reset ({rung})',
     'restart.rout': 'AUTO – la sortie ROUT/CROUT suit Enable (réarmement des appareils = redémarrage)',
+    'restart.rout_seal': 'MANUEL – le rung ROUT/CROUT a un démarrage / auto-maintien : redémarrage uniquement par '
+                         '{tags}',
     'restart.auto': 'AUTO – signal de niveau dans la branche d’auto-maintien : {tags}',
     'restart.manual': 'MANUEL – front de réarmement + auto-maintien',
     'restart.follow': 'suit la logique',
@@ -293,9 +304,11 @@ TEXT = {
     'f.equal_channels': 'Les deux voies de {instr} {tag} pointent vers la même entrée {ch} – pas de redondance ni de détection de discordance ; la fonction est '
                         'de fait monovoie ({n} sortie(s) de sécurité concernée(s)).',
     'f.equal_channels.rec': 'Raccorder la voie B à une entrée séparée et corriger l’opérande ; vérifier le câblage du capteur.',
-    'f.afi': 'Instruction AFI (Always False) dans {rung} – le rung est désactivé en permanence.',
+    'f.afi': 'Instruction AFI (Always False) dans {rung} – le rung est désactivé en permanence ; il coupe en '
+             'permanence : {outputs}.',
     'f.afi.rec': 'Supprimer l’AFI ou documenter la raison ; vérifier qu’aucune fonction de sécurité ne dépend de ce rung.',
-    'f.const_branch': 'Une branche composée uniquement de contacts constants ({consts}) est toujours vraie et ponte la logique de {tag}.',
+    'f.const_branch': 'Une branche composée uniquement de contacts constants ({consts}) est toujours vraie et ponte '
+                      'la logique de {tag}. Appareils pontés : {devices}.',
     'f.const_branch.rec': 'Supprimer la branche de pontage ou remplacer la constante par une véritable condition de sécurité.',
     'f.reset_std_auto': 'Le bit de réarmement {bit} est généré automatiquement (mémorisé dans la séquence standard ou écrit par la SafetyTask elle-même) et réarme : {resets}. '
                         'Source : {src}. Réarmement sans action délibérée de l’opérateur.',
@@ -319,10 +332,13 @@ TEXT = {
     'f.aux_no_device': 'La sortie de sécurité {tag} n’est coupée par aucun appareil d’entrée de sécurité (logique : {expr}) – p. ex. déverrouillage ou voyant. '
                        'Vérifier la fonction et ses conditions.',
     'f.aux_not_energized': 'La sortie de sécurité {tag} n’est pas enclenchée à l’état sain (logique : {expr}) – absente de la matrice ; vérifier la fonction.',
-    'f.crtl_inputs': 'Entrées de sécurité de {adapter} : RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier {ndm} % → Input CRTL {crtl} ms. '
-                     'Temps de réponse le plus défavorable de la logique seule (Input CRTL + filtre LC + période de la tâche {period} ms + watchdog {watchdog} ms + Output CRTL) '
-                     'jusqu’à {total} ms – hors temps du capteur et d’arrêt. Appareils : {devices}. Vérifier par rapport à l’appréciation du risque et aux distances '
-                     'de sécurité (ISO 13855) ; détails : feuille « Fonctions de sécurité ».',
+    'f.crtl_inputs': 'Entrées de sécurité de {adapter} : RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay '
+                     'Multiplier {ndm} % → Input CRTL {crtl} ms. Temps de réponse le plus défavorable de la logique '
+                     'seule (Input CRTL + filtre LC + période de la tâche {period} ms + watchdog {watchdog} ms + '
+                     'Output CRTL) jusqu’à {total} ms – hors temps du capteur et d’arrêt. Appareils : {devices}. '
+                     'Vérifier par rapport à l’appréciation du risque et aux distances de sécurité (ISO 13855) ; '
+                     'détails : feuille « Fonctions de sécurité ». Retard dû à l’ordre d’exécution inclus : {lags} × '
+                     'période de la tâche.',
     'f.crtl_outputs': 'Modules de sorties de sécurité {modules} : RPI {rpi} ms, TM {tm}, NDM {ndm} % → Output CRTL {crtl} ms.',
     'f.crtl_drives': 'Connexions de sortie CIP Safety des variateurs : RPI {rpi} ms, TM {tm}, NDM {ndm} % → CRTL {crtl} ms pour : {modules}.',
     'f.osf_ote': 'OSF/OSR et OTE sur le même tag {tag} dans un rung – l’OTE écrase l’impulsion de front par le niveau (réarmement par niveau au lieu du front).',
@@ -334,7 +350,9 @@ TEXT = {
                           'redémarrage est impossible lorsqu’une personne se trouve dans la zone dangereuse (ISO 13849-1 §5.2.2, ISO 14119).',
     'f.reset_std': 'Réarmement par la commande standard : le bit {bit} réarme {resets}. Source : {src}. Vérifier l’emplacement et la visibilité du bouton de réarmement '
                    '(réarmement manuel hors de la zone dangereuse, ISO 13849-1 §5.2.2).',
-    'f.std_not_written': 'Le bit mappé depuis le standard {bit} est lu dans la SafetyTask, mais aucune écriture de {src} n’a été trouvée dans le code standard.',
+    'f.std_not_written': 'Le bit mappé depuis le standard {bit} est lu dans la SafetyTask, mais aucune écriture de '
+                         '{src} n’a été trouvée dans le code standard. Seuls un IHM/SCADA, une instruction MSG ou '
+                         'une modification en ligne pourraient l’écrire.',
     'f.missing_comments': 'Pas de commentaires de voies E/S sur {module} ({channels}) – affectation de {who} uniquement d’après les noms des tags.',
     'f.free_cmp': 'Comparaison {leaf} dans la logique de {effects} – supposée {value} à l’état sain ; le résultat dépend des données.',
     'f.free_data': 'Bit dépendant de données {leaf} (écrit par une instruction de données) dans la logique de {effects} – supposé {value} à l’état sain.',
@@ -354,11 +372,78 @@ TEXT = {
     'f.jsr_conditional': 'La routine {routine} est appelée conditionnellement – ses sorties gardent leur état lorsqu’elle n’est pas exécutée.',
     'f.pair_mismatch': 'Les sorties {a} et {b} de {tag} ont des causes différentes dans la logique – vérifier le câblage des deux voies.',
     'f.loads': 'Le code ne définit pas ce qui est alimenté par les sorties {outputs} (contacteurs / STO câblé / vannes) – à confirmer sur les schémas électriques.',
-    'f.stop_cat0': 'Pas de temporisation au repos dans la SafetyTask → toutes les fonctions sont en catégorie d’arrêt 0 (STO / retombée du contacteur). '
-                   'Pour les machines à forte inertie, envisager SS1 selon l’appréciation du risque.',
-    'f.stop_cat1': 'Temporisations au repos dans la SafetyTask : {timers} – les sorties derrière elles s’arrêtent en catégorie 1 (SS1) ; vérifier la temporisation par rapport au temps d’arrêt.',
+    'f.stop_cat0': 'Aucune temporisation au repos sur un chemin appareil de sécurité → sortie, donc toutes les fonctions '
+                   'de sécurité sont en catégorie d’arrêt 0 (STO / retombée du contacteur). Pour les machines à '
+                   'forte inertie, envisager SS1 selon l’appréciation du risque.',
+    'f.stop_cat1': 'Temporisations au repos sur les chemins appareil de sécurité → sortie : {timers} – les sorties '
+                   '{effects} s’arrêtent en catégorie 1 (SS1) ; vérifier la temporisation par rapport au temps '
+                   'd’arrêt.',
     'f.forces': 'Les forçages ne sont pas enregistrés dans l’export – vérifier l’onglet Forces des tags de sécurité en ligne dans Studio 5000.',
     'f.completeness': 'Fichier analysé {src} ; routines exécutées et nombres de rungs : {routines}. Confirmer les nombres de rungs dans Studio 5000.',
+    'f.afi_noop': 'AFI (Always False) dans {rung} sur un rung sans instruction de sortie (p. ex. seulement NOP) – '
+                  'sans effet sur la logique aujourd’hui, mais c’est un rung désactivé dans la tâche de sécurité.',
+    'f.afi_noop.rec': 'Supprimer le rung ou documenter son but ; vérifier qu’aucune fonction de sécurité ne devait '
+                      's’y trouver.',
+    'f.map_written': 'Le tag de sécurité {tag} est la destination du SafetyTagMap (depuis le tag standard {src}) et '
+                     'il est aussi écrit par la logique de sécurité en {writers}. La valeur standard est copiée au '
+                     'début de chaque cycle de la tâche de sécurité puis écrasée – le mappage est sans effet et '
+                     'trompeur.',
+    'f.map_written.rec': 'Supprimer le mappage ou utiliser un tag de sécurité distinct pour le résultat de la '
+                         'logique ; documenter la source voulue.',
+    'f.map_read_before_write': 'Le tag de sécurité {tag} est mappé depuis le tag standard {src} (SafetyTagMap) et '
+                               'écrit par la logique de sécurité en {writers}, mais il est lu plus tôt dans le cycle '
+                               'en {readers} – à cet endroit sa valeur provient de la commande STANDARD.',
+    'f.map_read_before_write.rec': 'Supprimer le mappage ou placer l’écriture de sécurité avant chaque lecture ; la '
+                                   'valeur standard ne doit pas influencer la fonction de sécurité.',
+    'f.aux_always_on': 'La sortie de sécurité {tag} est activée sans condition (logique : {expr}) – aucun appareil '
+                       'de sécurité ne peut la couper (p. ex. alimentation d’un capteur ou source de test).',
+    'f.aux_always_on.rec': 'Vérifier sur les schémas ce qui est alimenté par cette sortie ; aucune charge dangereuse '
+                           'ne doit y être raccordée.',
+    'f.aux_inverse': 'La sortie de sécurité {tag} n’est activée que lorsque {devices} déclenchent (logique : {expr}) '
+                     '– voyant, déverrouillage d’interverrouillage ou similaire, pas une sortie de fonction de '
+                     'sécurité ; non affichée dans la matrice.',
+    'f.aux_inverse.rec': 'Vérifier la fonction ; si elle déverrouille un protecteur, vérifier les conditions (arrêt, '
+                         'temporisation).',
+    'f.channel_copy': 'Les voies de ces instructions sont des tags intermédiaires copiés depuis des entrées '
+                      'physiques (XIC(entrée) OTE(copie)) : {devices}. Les copies sont écrites avant l’instruction '
+                      'dans le cycle ; la matrice, le CRTL et les commentaires d’E/S utilisent les entrées '
+                      'physiques.',
+    'f.channel_copy.rec': 'Les rungs de copie ne doivent pas avoir de conditions supplémentaires ; utiliser '
+                          'directement les entrées physiques dans l’instruction est plus clair.',
+    'f.channel_copy_late': 'Les voies de ces instructions sont des tags intermédiaires copiés depuis des entrées '
+                           'physiques, et les rungs de copie s’exécutent APRÈS l’instruction dans le cycle : '
+                           '{devices}. L’instruction évalue l’état des entrées du cycle précédent – le temps de '
+                           'réponse augmente d’une période de la SafetyTask ({period} ms).',
+    'f.channel_copy_late.rec': 'Déplacer les rungs de copie avant les instructions (ordre des JSR dans MainRoutine) '
+                               'ou utiliser directement les entrées physiques ; inclure la période supplémentaire '
+                               'dans le temps de réponse.',
+    'f.channel_logic': 'La voie {ch} de {instr} {tag} n’est pas une entrée physique mais un tag calculé par la '
+                       'logique : {expr}. La redondance et la surveillance de discordance de l’instruction portent '
+                       'alors sur cette logique, pas sur le capteur.',
+    'f.channel_logic.rec': 'Raccorder directement les voies physiques à l’instruction ou justifier la logique dans '
+                           'le concept de sécurité.',
+    'f.scan_lag': 'Le tag {tag} est écrit en {writer} mais lu plus tôt dans le cycle en {readers} – ces rungs '
+                  'utilisent la valeur du cycle précédent : +1 période de SafetyTask ({period} ms) dans le temps de '
+                  'réponse de : {effects}.',
+    'f.scan_lag.rec': 'Modifier l’ordre des routines / rungs pour que le tag soit écrit avant d’être lu, ou inclure '
+                      'la période supplémentaire dans le temps de réponse.',
+    'f.edm_same_channel': 'Les deux entrées de retour de {instr} {tag} utilisent la même voie {ch} – les contacts '
+                          'auxiliaires des deux contacteurs sont câblés en série sur une seule entrée ; un défaut de '
+                          'cette entrée ou de ce fil n’est pas détecté par l’EDM.',
+    'f.edm_same_channel.rec': 'Vérifier que cela satisfait la catégorie / le PL requis ; sinon câbler chaque retour '
+                              'sur sa propre entrée.',
+    'f.rout_extra_logic': 'Les sorties {outputs} de {instr} {tag} sont aussi coupées par {devices}, qui n’agissent '
+                          'pas via la validation de {instr}. Si seuls ceux-ci déclenchent, les sorties retombent '
+                          'alors que {tag}.O1 reste actif – le retour ne correspond plus, {tag} signale un défaut de '
+                          'retour (réarmement requis) et l’EDM ne surveille pas ce chemin de coupure.',
+    'f.rout_extra_logic.rec': 'Intégrer ces conditions dans la validation de {tag} afin que chaque chemin de coupure '
+                              'passe par l’instruction surveillée.',
+    'f.timer_other': 'La temporisation au repos {tag} ({instr}, présélection {preset} ms) n’est pas sur un chemin '
+                     'appareil de sécurité → sortie : elle retarde la condition {cond} ; utilisée par : {users}. Ce '
+                     'n’est pas une catégorie d’arrêt 1 d’une fonction de sécurité (p. ex. retard '
+                     'd’interverrouillage ou de libération).',
+    'f.timer_other.rec': 'Si elle libère un interverrouillage, vérifier la temporisation par rapport au temps de '
+                         'ralentissement de la machine.',
     # ------------------------------------------------------------------ feuille Légende
     'l.title': 'LÉGENDE DES DÉSIGNATIONS ET MÉTHODE',
     'l.s1': '1. CODES DES CELLULES DE LA MATRICE', 'l.s2': '2. LECTURE DE LA MATRICE', 'l.s3': '3. DÉSIGNATIONS DES APPAREILS (ID)', 'l.s4': '4. ZONES',
@@ -415,6 +500,8 @@ TEXT = {
     'sf.n.crtl': 'Input CRTL ≥ {ms} ms – voir le rapport de validation (PRIORITÉ).',
     'sf.n.std': 'Signal provenant de la commande standard – temps de réponse indéterminé.',
     'sf.n.delay': 'Temporisation au repos dans le chemin : {ms} ms (catégorie 1) – à ajouter au temps de réponse.',
+    'sf.n.lag': 'L’ordre d’exécution ajoute {n} période(s) de SafetyTask ({ms} ms) – incluses dans la colonne de la '
+                'tâche.',
     'sf.only_xc': 'seulement avec le partenaire (XC) : {effs}',
     'sf.cf_note': 'Total sur fond rouge : > 1000 ms ; jaune : 500–1000 ms (mise en forme conditionnelle). Le total est calculé automatiquement après saisie des retards des appareils.',
     # ------------------------------------------------------------------ Procès-verbal d'essais
@@ -429,6 +516,8 @@ TEXT = {
     't.act.mute': 'Muting inactif.',
     't.act.disc': '2) Essai de discordance : appareil à l’état OK, ouvrez seulement la voie A ({a}), puis seulement la voie B ({b}).',
     't.exp.n': 'AUCUN déclenchement – l’instruction a des entrées constantes dans le code ({rung}) ; les sorties restent enclenchées. [ALARME CRITIQUE]',
+    't.exp.nconst': 'AUCUNE coupure pour {outs} – l’appareil est ponté par le contact constant {bits} ; ces sorties '
+                    'restent enclenchées. [ALARME CRITIQUE]',
     't.exp.off': '1) Coupées : {outs}',
     't.exp.sto': ' (variateurs : :SI.TorqueDisabled = 1)',
     't.exp.rest': '. Autres sorties inchangées.',

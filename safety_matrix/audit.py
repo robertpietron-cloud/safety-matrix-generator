@@ -2,12 +2,21 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/audit.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: automatic validation report
 #                        (critical alarms, dead inputs/outputs/tags, items to
 #                        verify) with routine and rung of every finding; rules
 #                        generalised from the manual PortalSaw audit rev 1.0-1.4.
+#   1.1.0 (2026-10-21) - std_parallel evaluated with all devices tripped (no
+#                        false alarms on series contacts); new rules: SafetyTagMap
+#                        target written by safety logic (incl. reads before
+#                        the write), channels copied from inputs / computed, scan-order
+#                        lag, EDM with equal feedback channels, ROUT outputs with
+#                        extra series logic, permanently energised and inverse
+#                        outputs, AFI on a rung without outputs, off-delay timers
+#                        outside device paths; drive peripheral sub-modules are not
+#                        reported as drives; constant bypass names the devices.
 # =============================================================================
 """Automatic audit of the safety task (Step 5 of the method)."""
 from __future__ import annotations
@@ -20,7 +29,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from . import instructions as INS
 from .analysis import Analysis, Effect
 from .ladder import Instr, Loc
-from .logic import vars_in
+from .logic import expr_text, vars_in
 from .model import io_parts, split_operand
 
 ALARM, DEAD, VERIFY = 'ALARM', 'DEAD', 'VERIFY'
@@ -81,10 +90,11 @@ class Auditor:
 
     def run(self) -> List[Finding]:
         for fn in (self.r_const_channels, self.r_std_channels, self.r_std_bypass, self.r_std_mute, self.r_std_parallel,
-                   self.r_estop_auto, self.r_equal_channels, self.r_afi, self.r_const_branch,
+                   self.r_estop_auto, self.r_equal_channels, self.r_afi, self.r_const_branch, self.r_map_written,
                    self.r_dead_devices, self.r_dead_muting, self.r_aux_outputs, self.r_const_tags, self.r_unused_tags,
                    self.r_unused_channels, self.r_uncalled, self.r_modules_outside,
-                   self.r_crtl, self.r_double_write, self.r_rout_reset_fp, self.r_or_devices, self.r_auto_restart,
+                   self.r_crtl, self.r_channels, self.r_scan_lag, self.r_double_write, self.r_rout_reset_fp,
+                   self.r_edm, self.r_or_devices, self.r_auto_restart,
                    self.r_auto_reset_guard, self.r_reset_std, self.r_std_not_written, self.r_missing_comments,
                    self.r_free_conditions, self.r_direct, self.r_heuristic, self.r_flow, self.r_pair_mismatch,
                    self.r_loads, self.r_stop_category, self.r_forces, self.r_completeness):
@@ -180,12 +190,13 @@ class Auditor:
             devs, free = self.A.ev.cone(v)
             std = [f for f in free if self.A.leaf_class(f) == 'std' and f not in xb]
             safety = devs or [f for f in free if self.A.leaf_class(f) in ('input', 'ext')]
-            if not std or not safety or self.A.ev.value(v):
+            # all safety devices tripped, safety inputs 0: can the standard bit alone switch the tag on?
+            if not std or not safety or self.A.ev.value(v, dev_off=devs):
                 continue
             for s in sorted(std):
                 if (s, v) in reported:
                     continue
-                if self.A.ev.value(v, free={s: True}):
+                if self.A.ev.value(v, dev_off=devs, free={s: True}):
                     reported.add((s, v))
                     self.add(ALARM, 'std_parallel', [self.A._def_loc(v)], f'{v} ← … ∥ {s}', tag=v, bit=s,
                              src=self.std_trace(s) or s, expr=self.A.permissive_text(v))
@@ -212,23 +223,67 @@ class Auditor:
     def r_afi(self):
         for loc, what in self.lm.flow:
             if what == 'AFI':
-                self.add(ALARM, 'afi', [loc], 'AFI', rung=self.A.loc_label(loc))
+                r = self.A.rung(loc)
+                outs = [t.args[0] for t in (r[2] if r else []) if isinstance(t, Instr) and t.args and
+                        (t.name.upper() in ('OTE', 'OTL', 'OTU', 'JSR') or t.name.upper() in INS.SAFETY_INSTRUCTIONS)]
+                if outs:
+                    self.add(ALARM, 'afi', [loc], 'AFI', rung=self.A.loc_label(loc), outputs=', '.join(outs))
+                else:
+                    self.add(ALARM, 'afi_noop', [loc], 'AFI', rung=self.A.loc_label(loc))
 
     def r_const_branch(self):
+        """Constant contacts (initial value, never written by the logic) that bridge devices or whole branches."""
+        groups = OrderedDict()
+        for (d, ek), c in self.A.cells.items():            # 1) devices bridged by a constant contact (cell N)
+            if c.raw == 'N' and c.bypass:
+                g = groups.setdefault(tuple(c.bypass), {'devs': [], 'effs': []})
+                if d not in g['devs']:
+                    g['devs'].append(d)
+                if ek not in g['effs']:
+                    g['effs'].append(ek)
+        done = set()
+        for consts, g in groups.items():
+            done |= set(consts)
+            self.add(ALARM, 'const_branch', [l for b in consts for l in self.uses_of(b)], ', '.join(g['effs']),
+                     tag=', '.join(g['effs']), consts=', '.join(consts), devices=', '.join(g['devs']))
+        self._const_bypass = done
         rep = set()
-        for v, lst in self.lm.defs.items():
+        for v, lst in self.lm.defs.items():                 # 2) branches made only of constant contacts
             expr, loc, _ = lst[-1]
             for leg in _or_legs(expr):
                 vs = vars_in(leg)
-                if vs and all(self.A.ev.leaf_info(x)[0] == 'const' and not self.A.ev.defined(x) for x in vs):
+                if vs and not set(vs) <= done and \
+                        all(self.A.ev.leaf_info(x)[0] == 'const' and not self.A.ev.defined(x) for x in vs):
                     if self.A.ev._ev(leg, (frozenset(), {}), frozenset(), {})[0] and (v, loc) not in rep:
                         rep.add((v, loc))
-                        self.add(ALARM, 'const_branch', [loc], v, tag=v, consts=', '.join(vs))
+                        self.add(ALARM, 'const_branch', [loc], v, tag=v, consts=', '.join(vs), devices='—')
+
+    def r_map_written(self):
+        """Safety tags of the SafetyTagMap that are also written by the safety logic."""
+        groups = OrderedDict()
+        for w, lst in self.lm.writes.items():
+            base = split_operand(w)[0]
+            if base in self.A.std_dests:
+                groups.setdefault(base, []).extend((w, l) for l, _ in lst)
+        for base, ws in groups.items():
+            first = min(self.lm.order(l) for _, l in ws)
+            early = [l for t, lst in self.lm.reads.items() if split_operand(t)[0] == base for l in lst
+                     if self.lm.order(l) < first]
+            src = self.A.std_src_of.get(base, '?')
+            wl = [l for _, l in ws]
+            if early:
+                self.add(VERIFY, 'map_read_before_write', early + wl, base, tag=base, src=src,
+                         readers=', '.join(dict.fromkeys(self.A.loc_label(l) for l in early)),
+                         writers=', '.join(dict.fromkeys(self.A.loc_label(l) for l in wl)))
+            else:
+                self.add(VERIFY, 'map_written', wl, base, tag=base, src=src,
+                         writers=', '.join(dict.fromkeys(self.A.loc_label(l) for l in wl)))
 
     # ================================================================= DEAD
     def r_dead_devices(self):
         for d in self.A.devices.values():
-            if d.n_eff == 0 and not d.const_channels:
+            bridged = any(c.raw == 'N' for (dv, _), c in self.A.cells.items() if dv == d.tag)
+            if d.n_eff == 0 and not d.const_channels and not bridged:
                 uses = []
                 for loc in self.uses_of(d.tag + '.O1'):
                     r = self.A.rung(loc)
@@ -246,8 +301,19 @@ class Auditor:
         for e in self.A.effects:
             if e.in_matrix:
                 continue
-            key = 'aux_not_energized' if e.reason == 'not_energized' else 'aux_no_device'
-            self.add(VERIFY, key, [self.A.effect_rung(e)], e.key, tag=e.key, expr=self.A.permissive_text(e.var))
+            devs, free = self.A.ev.cone(e.var)
+            params = dict(tag=e.key, expr=self.A.permissive_text(e.var))
+            if e.reason == 'not_energized':
+                inv = sorted(d for d in devs if self.A.ev.value(e.var, dev_off=[d]))
+                key = 'aux_inverse' if inv else 'aux_not_energized'
+                if inv:
+                    params['devices'] = ', '.join(inv)
+            elif not devs and not free and self.A.ev.value(e.var):
+                key = 'aux_always_on'
+                params['expr'] = expr_text(self.A.ev.expr_of(e.var)) if self.A.ev.defined(e.var) else '1'
+            else:
+                key = 'aux_no_device'
+            self.add(VERIFY, key, [self.A.effect_rung(e)], e.key, **params)
 
     def _used_roots(self):
         roots = set()
@@ -265,6 +331,8 @@ class Auditor:
             if t in self.lm.defs or t in self.lm.writes or self.A.is_std(t):
                 continue
             k, v = self.A.ev.leaf_info(t)
+            if t in getattr(self, '_const_bypass', set()):
+                continue                              # reported as const_branch (ALARM)
             if k == 'const' and not (re.search(r'(Fault|Status|\.FP|Ready|Required|Disabled)', t) or io_parts(t)):
                 items.append(f'{t} = {int(bool(v))}')
                 locs += lst
@@ -324,6 +392,8 @@ class Auditor:
                 refs.add(io[0])
         drives_hw = []
         for m in self.A.p.modules.values():
+            if m.is_peripheral:
+                continue
             is_drive = bool(re.search(r'PowerFlex|Kinetix|Drive|ArmorStart', m.catalog, re.I))
             if m.is_safety and m.tag_prefix not in refs and any(c.safety for c in m.connections) and not m.inhibited:
                 if is_drive:
@@ -352,14 +422,16 @@ class Auditor:
             g['devs'].append(d.tag)
             outs = [A.output_connection(e)[1] for e in self.hits(d.tag, ('X', 'X1', 'XB', 'XM', 'XC'))]
             out_max = max((o.reaction_time_limit_ms or 0 for o in outs if o), default=0)
-            tot = (c.reaction_time_limit_ms or 0) + (d.filter_ms or 0) + per + wd + out_max
+            lag = A.max_lag(d.tag)
+            tot = (c.reaction_time_limit_ms or 0) + (d.filter_ms or 0) + per * (1 + lag) + wd + out_max
             g['total'] = max(g['total'], tot)
+            g['lag'] = max(g.get('lag', 0), lag)
         for (ad, rpi, tm, ndm, crtl), g in groups.items():
             pri = (crtl or 0) >= self.crtl_priority_ms
             cats = sorted(set(g['mods'].values()))
             self.add(VERIFY, 'crtl_inputs', [], f"{ad}: {', '.join(cats)} (slot {', '.join(g['mods'])})", priority=pri,
                      adapter=ad, rpi=_g(rpi), tm=_g(tm), ndm=_g(ndm), crtl=_g(crtl), total=_g(g['total']),
-                     period=_g(per), watchdog=_g(wd), devices=', '.join(g['devs']))
+                     period=_g(per), watchdog=_g(wd), devices=', '.join(g['devs']), lags=g.get('lag', 0))
         outs = OrderedDict()
         for e in A.matrix_effects(safety_only=True):
             m, c = A.output_connection(e)
@@ -372,6 +444,58 @@ class Auditor:
             mods = list(OrderedDict.fromkeys(mods))
             self.add(VERIFY, 'crtl_drives' if kind == 'drive' else 'crtl_outputs', [], ', '.join(mods), rpi=_g(rpi), tm=_g(tm),
                      ndm=_g(ndm), crtl=_g(crtl), modules=', '.join(mods))
+
+    def r_channels(self):
+        """Instruction channels that are copies of inputs or are computed by logic."""
+        A = self.A
+        groups = {'channel_copy': [], 'channel_copy_late': []}
+        for d in A.devices.values():
+            if d.kind != 'instr':
+                continue
+            if d.copies:
+                txt = []
+                for role, ch, src in (('A', d.ch_a, d.src_a), ('B', d.ch_b, d.src_b)):
+                    if src and not (role == 'B' and d.ch_b == d.ch_a):
+                        at = ', '.join(A.loc_label(l) for r, _, l in d.copies if r == role)
+                        txt.append(f'{role}: {ch} ← {src} ({at})')
+                groups['channel_copy_late' if d.channel_lag else 'channel_copy'].append((d, '; '.join(txt)))
+            for c in d.computed:
+                self.add(VERIFY, 'channel_logic', [d.loc, A._def_loc(c)], f'{d.tag} ({d.instr}): {c}', tag=d.tag,
+                         instr=d.instr, ch=c, expr=A.permissive_text(c))
+        for key, items in groups.items():
+            if items:
+                self.add(VERIFY, key, [d.loc for d, _ in items] + [l for d, _ in items for _, _, l in d.copies],
+                         ', '.join(d.tag for d, _ in items), devices='; '.join(f'{d.tag} ({d.instr}) – {t}' for d, t in items),
+                         period=_g(A.task_period))
+
+    def r_scan_lag(self):
+        """Tags read earlier in the scan than they are written (the reader uses the previous scan)."""
+        A = self.A
+        for (tag, wloc), g in A.lags.items():
+            effs = g['effects']
+            self.add(VERIFY, 'scan_lag', list(g['readers']) + [wloc], tag, tag=tag, writer=A.loc_label(wloc),
+                     readers=', '.join(A.loc_label(l) for l in g['readers']), period=_g(A.task_period),
+                     effects=', '.join(effs[:12]) + (' …' if len(effs) > 12 else ''))
+
+    def r_edm(self):
+        """ROUT / CROUT: equal feedback channels; physical outputs switched by logic outside the instruction."""
+        A = self.A
+        for o in self.lm.outputs.values():
+            fb = [o.roles.get(k, '') for k in ('Feedback1', 'Feedback2')]
+            if fb[0] and fb[0] == fb[1] and not INS.looks_literal(fb[0]):
+                self.add(VERIFY, 'edm_same_channel', [o.loc], f'{o.tag} ({o.instr})', tag=o.tag, instr=o.instr, ch=fb[0])
+        for e in A.effects:
+            if not e.instr or not e.energized:
+                continue
+            en = A.ev.cone(e.instr + '.O1')[0]
+            extra = OrderedDict()
+            for out in e.outputs:
+                for d in sorted(A.ev.cone(out)[0] - en):
+                    extra.setdefault(d, None)
+            if extra:
+                self.add(VERIFY, 'rout_extra_logic', [A._def_loc(o) for o in e.outputs] + [A.lm.outputs[e.instr].loc],
+                         f'{e.instr} → {", ".join(e.outputs)}', tag=e.instr, instr=e.kind, outputs=', '.join(e.outputs),
+                         devices=', '.join(extra))
 
     def r_double_write(self):
         for tag, ws in self.lm.writes.items():
@@ -459,13 +583,15 @@ class Auditor:
             return
         for b in self.A.std_bits:
             src = self.A.std_source(b)
+            if split_operand(b)[0] in {split_operand(w)[0] for w in self.lm.writes}:
+                continue                              # reported by map_written / map_read_before_write
             if src and not self.A.std_writers(src):
                 self.add(VERIFY, 'std_not_written', self.uses_of(b), b, bit=b, src=src)
 
     def r_missing_comments(self):
         by_mod = OrderedDict()
         for d in self.A.devices.values():
-            for ch in (d.ch_a, d.ch_b):
+            for ch in (d.phys_a, d.phys_b):
                 if ch and io_parts(ch) and not self.A.io_comment(ch):
                     m = io_parts(ch)[0]
                     g = by_mod.setdefault(m, {'ch': [], 'who': [], 'locs': []})
@@ -553,15 +679,26 @@ class Auditor:
             self.add(VERIFY, 'loads', [self.A.effect_rung(e) for e in rs], 'ROUT / CROUT / OTE', outputs=', '.join(e.key for e in rs))
 
     def r_stop_category(self):
-        if not self.lm.timers:
-            self.add(VERIFY, 'stop_cat0', [], '—')
-            return
         off = [t for t in self.lm.timers.values() if t.kind in INS.OFF_DELAY_TIMERS]
-        if off:
-            self.add(VERIFY, 'stop_cat1', [t.loc for t in off], ', '.join(t.tag for t in off),
-                     timers=', '.join(f'{t.tag} ({t.kind}, {t.preset_raw} ms)' for t in off))
+        in_path = OrderedDict()
+        for (d, ek), c in self.A.cells.items():
+            for tag, _ in c.path:
+                if tag.endswith('.DN') and tag[:-3] in self.lm.timers:
+                    in_path.setdefault(tag[:-3], []).append(ek)
+        path_timers = [t for t in off if t.tag in in_path]
+        if path_timers:
+            effs = list(OrderedDict.fromkeys(e for t in path_timers for e in in_path[t.tag]))
+            self.add(VERIFY, 'stop_cat1', [t.loc for t in path_timers], ', '.join(t.tag for t in path_timers),
+                     timers=', '.join(f'{t.tag} ({t.kind}, {t.preset_raw or "?"} ms)' for t in path_timers),
+                     effects=', '.join(effs[:12]) + (' …' if len(effs) > 12 else ''))
         else:
             self.add(VERIFY, 'stop_cat0', [], '—')
+        for t in off:
+            if t.tag in in_path:
+                continue
+            users = [w for w, lst in self.lm.defs.items() if any(t.tag + '.DN' in vars_in(x[0]) for x in lst)]
+            self.add(VERIFY, 'timer_other', [t.loc], f'{t.tag} ({t.kind})', tag=t.tag, instr=t.kind,
+                     preset=t.preset_raw or '?', cond=expr_text(self.A.ev.expr_of(t.tag + '.EN')) if self.A.ev.defined(t.tag + '.EN') else '—', users=', '.join(users) or '—')
 
     def r_forces(self):
         self.add(VERIFY, 'forces', [], 'Forces')

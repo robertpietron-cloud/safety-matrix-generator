@@ -2,14 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/__init__.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: package metadata and the
 #                        high-level generate() API.
+#   1.1.0 (2026-10-21) - Version 1.1.0 (see CHANGELOG).
 # =============================================================================
 """Safety Matrix Generator – Cause & Effect matrix from a GuardLogix SafetyTask (L5K / L5X)."""
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 __author__ = 'Robert Pietroń'
 
 __all__ = ['__version__', '__author__', 'generate']

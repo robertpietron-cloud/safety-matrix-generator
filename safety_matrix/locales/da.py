@@ -2,10 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/locales/da.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: danske tekster (samme nøgler
 #                        som det engelske katalog).
+#   1.1.0 (2026-10-21) - Texts of the new audit rules (SafetyTagMap target written,
+#                        copied / computed channels, scan-order lag, EDM, ROUT
+#                        extra logic, always-on / inverse outputs, AFI without
+#                        outputs, timers outside device paths), constant bypass,
+#                        ROUT/CROUT restart with a start / seal-in on its rung.
 # =============================================================================
 """Danske tekster."""
 
@@ -57,6 +62,8 @@ TEXT = {
     'w.conditions': 'Medmindre (intern betingelse / muting): {bits}',
     'w.partners': 'Udløser kun sammen med: {devs}',
     'w.delay': 'Frafaldsforsinkelse i stien: {ms} ms (stopkategori 1)',
+    'w.constbypass': 'Kortsluttet af en konstant kontakt (startværdi 1, skrives aldrig): {bits}',
+    'w.lag': 'Scanningsrækkefølge: +{n} SafetyTask-periode(r) = {ms} ms (værdi fra forrige scanning)',
     'src.const': '{op} = konstant {v}',
     'src.never': '{op} – skrives aldrig (ubrugt)',
     'src.literal': 'konstant {v}',
@@ -78,7 +85,9 @@ TEXT = {
     'code.XM.full': 'Slår udgangen fra, men en intern betingelse i SafetyTask (muting-instruktion, sammenligning, tilstandsvælger, data eller låst bit) '
                     'kan holde den inde. Betingelse: cellekommentar / "C&E-stier". [SKAL VERIFICERES]',
     'code.N.short': 'I logikken, men ikke-funktionel – udløser aldrig  [ALARM]',
-    'code.N.full': 'Komponenten er i den logiske sti, men instruktionen har konstante kanalindgange – den slår aldrig udgangen fra. [KRITISK ALARM]',
+    'code.N.full': 'Komponenten er i den logiske sti, men kan aldrig slå udgangen fra: instruktionen har konstante '
+                   'kanalindgange, eller komponenten er kortsluttet af en konstant kontakt (tag med startværdi 1, '
+                   'som logikken aldrig skriver). [KRITISK ALARM]',
     'code.S.short': 'Info: signal til standardstyringen (ikke en sikkerhedsudgang)',
     'code.S.full': 'Informationskolonne: status, der videregives til STANDARDstyringen (f.eks. forrigling til en anden maskine). Ikke en sikkerhedsudgang.',
     'code.SB.short': 'Som S, med mulig omgåelse fra standardstyringen',
@@ -237,6 +246,7 @@ TEXT = {
     'rs.none': 'ingen (ingen selvhold – følger logikken)',
     'rs.so_reset': '  + SO.Reset-rung ({rung})',
     'restart.rout': 'AUTO – ROUT/CROUT-udgangen følger Enable (reset af komponenter = genstart)',
+    'restart.rout_seal': 'MANUEL – ROUT/CROUT-rungen har start / selvhold: genstart kun med {tags}',
     'restart.auto': 'AUTO – niveausignal i selvholdsgrenen: {tags}',
     'restart.manual': 'MANUEL – resetflanke + selvhold',
     'restart.follow': 'følger logikken',
@@ -293,9 +303,11 @@ TEXT = {
     'f.equal_channels': 'Begge kanaler i {instr} {tag} peger på samme indgang {ch} – ingen redundans og ingen detektering af uoverensstemmelse; funktionen er '
                         'reelt enkeltkanals ({n} sikkerhedsudgang(e) berørt).',
     'f.equal_channels.rec': 'Tilslut kanal B til en separat indgang og ret operanden; kontrollér sensorens ledningsføring.',
-    'f.afi': 'AFI-instruktion (Always False) i {rung} – rungen er permanent deaktiveret.',
+    'f.afi': 'AFI-instruktion (Always False) i {rung} – rungen er permanent deaktiveret; den slår permanent fra: '
+             '{outputs}.',
     'f.afi.rec': 'Fjern AFI eller dokumentér årsagen; kontrollér, at ingen sikkerhedsfunktion afhænger af rungen.',
-    'f.const_branch': 'En gren, der kun består af konstante kontakter ({consts}), er altid sand og kortslutter logikken for {tag}.',
+    'f.const_branch': 'En gren, der kun består af konstante kontakter ({consts}), er altid sand og kortslutter '
+                      'logikken for {tag}. Kortsluttede komponenter: {devices}.',
     'f.const_branch.rec': 'Fjern den kortsluttende gren eller erstat konstanten med en reel sikkerhedsbetingelse.',
     'f.reset_std_auto': 'Resetbitten {bit} genereres automatisk (låst i standardsekvensen eller skrevet af selve SafetyTask) og nulstiller: {resets}. '
                         'Kilde: {src}. Reset uden bevidst handling fra operatøren.',
@@ -319,10 +331,12 @@ TEXT = {
     'f.aux_no_device': 'Sikkerhedsudgangen {tag} slås ikke fra af nogen sikkerhedsindgangskomponent (logik: {expr}) – f.eks. oplåsning af dørlås eller signallampe. '
                        'Kontrollér funktionen og dens betingelser.',
     'f.aux_not_energized': 'Sikkerhedsudgangen {tag} er ikke indkoblet i fejlfri tilstand (logik: {expr}) – ikke vist i matrixen; kontrollér funktionen.',
-    'f.crtl_inputs': 'Sikkerhedsindgange på {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier {ndm} % → Input CRTL {crtl} ms. '
-                     'Værste reaktionstid for logikken alene (Input CRTL + LC-filter + taskperiode {period} ms + watchdog {watchdog} ms + Output CRTL) '
-                     'op til {total} ms – uden sensor- og stoptider. Komponenter: {devices}. Verificér mod risikovurderingen og sikkerhedsafstandene '
-                     '(ISO 13855); detaljer: arket "Sikkerhedsfunktioner".',
+    'f.crtl_inputs': 'Sikkerhedsindgange på {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay '
+                     'Multiplier {ndm} % → Input CRTL {crtl} ms. Værste reaktionstid for logikken alene (Input CRTL '
+                     '+ LC-filter + taskperiode {period} ms + watchdog {watchdog} ms + Output CRTL) op til {total} '
+                     'ms – uden sensor- og stoptider. Komponenter: {devices}. Verificér mod risikovurderingen og '
+                     'sikkerhedsafstandene (ISO 13855); detaljer: arket "Sikkerhedsfunktioner". Medregnet '
+                     'forsinkelse fra scanningsrækkefølgen: {lags} × taskperiode.',
     'f.crtl_outputs': 'Sikkerhedsudgangsmoduler {modules}: RPI {rpi} ms, TM {tm}, NDM {ndm} % → Output CRTL {crtl} ms.',
     'f.crtl_drives': 'CIP Safety-udgangsforbindelser til frekvensomformere: RPI {rpi} ms, TM {tm}, NDM {ndm} % → CRTL {crtl} ms for: {modules}.',
     'f.osf_ote': 'OSF/OSR og OTE på samme tag {tag} i én rung – OTE overskriver flankeimpulsen med niveauet (niveaureset i stedet for flankereset).',
@@ -334,7 +348,9 @@ TEXT = {
                           'ikke kan ske, mens en person er i fareområdet (ISO 13849-1 §5.2.2, ISO 14119).',
     'f.reset_std': 'Reset fra standardstyringen: bit {bit} nulstiller {resets}. Kilde: {src}. Kontrollér placering og synlighed af resetknappen '
                    '(manuel reset uden for fareområdet, ISO 13849-1 §5.2.2).',
-    'f.std_not_written': 'Den std-mappede bit {bit} læses i SafetyTask, men der er ikke fundet nogen skrivning til {src} i standardkoden.',
+    'f.std_not_written': 'Den std-mappede bit {bit} læses i SafetyTask, men der er ikke fundet nogen skrivning til '
+                         '{src} i standardkoden. Kun HMI/SCADA, en MSG-instruktion eller en online-ændring kan sætte '
+                         'den.',
     'f.missing_comments': 'Ingen I/O-kanalkommentarer på {module} ({channels}) – tildeling af {who} kun ud fra tagnavne.',
     'f.free_cmp': 'Sammenligning {leaf} i logikken for {effects} – antaget {value} i fejlfri tilstand; resultatet afhænger af data.',
     'f.free_data': 'Dataafhængig bit {leaf} (skrevet af en datainstruktion) i logikken for {effects} – antaget {value} i fejlfri tilstand.',
@@ -354,11 +370,73 @@ TEXT = {
     'f.jsr_conditional': 'Rutinen {routine} kaldes betinget – udgange i den bevarer deres tilstand, mens den ikke udføres.',
     'f.pair_mismatch': 'Udgangene {a} og {b} på {tag} har forskellige årsager i logikken – kontrollér ledningsføringen af begge kanaler.',
     'f.loads': 'Koden definerer ikke, hvad der forsynes fra udgangene {outputs} (kontaktorer / kablet STO / ventiler) – bekræft i el-diagrammerne.',
-    'f.stop_cat0': 'Ingen frafaldsforsinkelser i SafetyTask → alle funktioner er stopkategori 0 (STO / kontaktorfrafald). For maskiner med stor inerti '
+    'f.stop_cat0': 'Ingen frafaldsforsinkelse ligger på en vej sikkerhedskomponent → udgang, så alle '
+                   'sikkerhedsfunktioner er stopkategori 0 (STO / kontaktorfrafald). For maskiner med stor inerti '
                    'bør SS1 overvejes iht. risikovurderingen.',
-    'f.stop_cat1': 'Frafaldsforsinkelser i SafetyTask: {timers} – udgangene bag dem stopper i kategori 1 (SS1); kontrollér forsinkelsen mod stoptiden.',
+    'f.stop_cat1': 'Frafaldsforsinkelser på veje sikkerhedskomponent → udgang: {timers} – udgangene {effects} '
+                   'stopper i kategori 1 (SS1); kontrollér forsinkelsen mod stoptiden.',
     'f.forces': 'Forces gemmes ikke i eksporten – kontrollér fanen Forces for sikkerhedstags online i Studio 5000.',
     'f.completeness': 'Analyseret fil {src}; udførte rutiner og antal rungs: {routines}. Bekræft antallet af rungs i Studio 5000.',
+    'f.afi_noop': 'AFI (Always False) i {rung} på en rung uden udgangsinstruktioner (f.eks. kun NOP) – ingen '
+                  'virkning på logikken i dag, men det er en deaktiveret rung i sikkerhedsopgaven.',
+    'f.afi_noop.rec': 'Fjern rungen eller dokumentér dens formål; kontrollér, at der ikke skulle have været en '
+                      'sikkerhedsfunktion.',
+    'f.map_written': 'Sikkerhedstagget {tag} er destination i SafetyTagMap (fra standardtagget {src}) og skrives '
+                     'også af sikkerhedslogikken i {writers}. Standardværdien kopieres ved starten af hver scanning '
+                     'af sikkerhedsopgaven og overskrives derefter – mappingen har ingen virkning og er vildledende.',
+    'f.map_written.rec': 'Fjern mappingen eller brug et separat sikkerhedstag til logikkens resultat; dokumentér, '
+                         'hvilken kilde der er tilsigtet.',
+    'f.map_read_before_write': 'Sikkerhedstagget {tag} mappes fra standardtagget {src} (SafetyTagMap) og skrives af '
+                               'sikkerhedslogikken i {writers}, men læses tidligere i scanningen i {readers} – dér '
+                               'kommer værdien fra STANDARDstyringen.',
+    'f.map_read_before_write.rec': 'Fjern mappingen eller flyt sikkerhedsskrivningen før enhver læsning; '
+                                   'standardværdien må ikke påvirke sikkerhedsfunktionen.',
+    'f.aux_always_on': 'Sikkerhedsudgangen {tag} er aktiveret ubetinget (logik: {expr}) – ingen sikkerhedskomponent '
+                       'kan slå den fra (f.eks. forsyning til en sensor eller testkilde).',
+    'f.aux_always_on.rec': 'Bekræft i diagrammerne, hvad der forsynes fra denne udgang; der må ikke være tilsluttet '
+                           'en farlig belastning.',
+    'f.aux_inverse': 'Sikkerhedsudgangen {tag} aktiveres kun, når {devices} udløser (logik: {expr}) – signallampe, '
+                     'frigivelse af låsning eller lignende, ikke en udgang for en sikkerhedsfunktion; vises ikke i '
+                     'matrixen.',
+    'f.aux_inverse.rec': 'Kontrollér funktionen; hvis den frigiver en låsning, kontrollér betingelserne (stilstand, '
+                         'forsinkelse).',
+    'f.channel_copy': 'Kanalerne i disse instruktioner er mellemliggende tags kopieret fra fysiske indgange '
+                      '(XIC(indgang) OTE(kopi)): {devices}. Kopierne skrives før instruktionen i scanningen; matrix, '
+                      'CRTL og I/O-kommentarer bruger de fysiske indgange.',
+    'f.channel_copy.rec': 'Kopi-rungs må ikke have ekstra betingelser; det er tydeligere at bruge de fysiske '
+                          'indgange direkte i instruktionen.',
+    'f.channel_copy_late': 'Kanalerne i disse instruktioner er mellemliggende tags kopieret fra fysiske indgange, og '
+                           'kopi-rungs udføres EFTER instruktionen i scanningen: {devices}. Instruktionen vurderer '
+                           'indgangstilstanden fra den forrige scanning – reaktionstiden øges med én '
+                           'SafetyTask-periode ({period} ms).',
+    'f.channel_copy_late.rec': 'Flyt kopi-rungs før instruktionerne (JSR-rækkefølge i MainRoutine) eller brug de '
+                               'fysiske indgange direkte; medregn den ekstra periode i reaktionstiden.',
+    'f.channel_logic': 'Kanal {ch} i {instr} {tag} er ikke en fysisk indgang, men et tag beregnet af logikken: '
+                       '{expr}. Instruktionens redundans og uoverensstemmelsesovervågning gælder så denne logik, '
+                       'ikke sensoren.',
+    'f.channel_logic.rec': 'Forbind de fysiske kanaler direkte til instruktionen, eller begrund logikken i '
+                           'sikkerhedskonceptet.',
+    'f.scan_lag': 'Tagget {tag} skrives i {writer}, men læses tidligere i scanningen i {readers} – disse rungs '
+                  'bruger værdien fra den forrige scanning: +1 SafetyTask-periode ({period} ms) i reaktionstiden '
+                  'for: {effects}.',
+    'f.scan_lag.rec': 'Ændr rækkefølgen af rutiner / rungs, så tagget skrives før det læses, eller medregn den '
+                      'ekstra periode i reaktionstiden.',
+    'f.edm_same_channel': 'Begge tilbagemeldingsindgange i {instr} {tag} bruger samme kanal {ch} – hjælpekontakterne '
+                          'fra begge kontaktorer er seriekoblet til én indgang; en fejl i denne ene indgang eller '
+                          'ledning opdages ikke af EDM.',
+    'f.edm_same_channel.rec': 'Kontrollér, at dette opfylder den krævede kategori / PL; ellers skal hver '
+                              'tilbagemelding forbindes til sin egen indgang.',
+    'f.rout_extra_logic': 'Udgangene {outputs} fra {instr} {tag} slås også fra af {devices}, som ikke virker gennem '
+                          '{instr}-frigivelsen. Når kun disse udløser, falder udgangene, mens {tag}.O1 forbliver '
+                          'aktiv – tilbagemeldingen passer ikke længere, {tag} melder tilbagemeldingsfejl (reset '
+                          'påkrævet), og EDM overvåger ikke denne frakoblingsvej.',
+    'f.rout_extra_logic.rec': 'Inkludér disse betingelser i frigivelsen af {tag}, så enhver frakoblingsvej går '
+                              'gennem den overvågede instruktion.',
+    'f.timer_other': 'Frafaldsforsinkelsen {tag} ({instr}, preset {preset} ms) ligger ikke på en vej '
+                     'sikkerhedskomponent → udgang: den forsinker betingelsen {cond}; bruges af: {users}. Det er '
+                     'ikke stopkategori 1 for en sikkerhedsfunktion (f.eks. forsinkelse af låsning eller '
+                     'frigivelse).',
+    'f.timer_other.rec': 'Hvis den frigiver en låsning, kontrollér forsinkelsen mod maskinens udløbstid.',
     # ------------------------------------------------------------------ arket Signaturforklaring
     'l.title': 'SIGNATURFORKLARING OG METODE',
     'l.s1': '1. KODER I MATRIXENS CELLER', 'l.s2': '2. AFLÆSNING AF MATRIXEN', 'l.s3': '3. KOMPONENTBETEGNELSER (ID)', 'l.s4': '4. ZONER',
@@ -415,6 +493,7 @@ TEXT = {
     'sf.n.crtl': 'Input CRTL ≥ {ms} ms – se valideringsrapporten (PRIORITET).',
     'sf.n.std': 'Signal fra standardstyringen – reaktionstiden er ubestemt.',
     'sf.n.delay': 'Frafaldsforsinkelse i stien: {ms} ms (kategori 1) – lægges til reaktionstiden.',
+    'sf.n.lag': 'Scanningsrækkefølgen tilføjer {n} SafetyTask-periode(r) ({ms} ms) – medregnet i taskkolonnen.',
     'sf.only_xc': 'kun med partner (XC): {effs}',
     'sf.cf_note': 'Rød sum: > 1000 ms; gul: 500–1000 ms (betinget formatering). Summen beregnes automatisk, når komponenternes forsinkelser er indtastet.',
     # ------------------------------------------------------------------ Testprotokol
@@ -429,6 +508,8 @@ TEXT = {
     't.act.mute': 'Muting inaktiv.',
     't.act.disc': '2) Uoverensstemmelsestest: med komponenten OK afbrydes kun kanal A ({a}), derefter kun kanal B ({b}).',
     't.exp.n': 'INGEN udløsning – instruktionen har konstante indgange i koden ({rung}); udgangene forbliver indkoblet. [KRITISK ALARM]',
+    't.exp.nconst': 'INGEN udkobling for {outs} – komponenten er kortsluttet af den konstante kontakt {bits}; disse '
+                    'udgange forbliver indkoblet. [KRITISK ALARM]',
     't.exp.off': '1) Slået fra: {outs}',
     't.exp.sto': ' (frekvensomformere: :SI.TorqueDisabled = 1)',
     't.exp.rest': '. Øvrige udgange uændrede.',

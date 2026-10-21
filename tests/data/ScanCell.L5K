@@ -1,0 +1,232 @@
+(*********************************************
+  Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
+  File    : tests/data/ScanCell.L5K
+  Author  : Robert Pietroń
+  Revision: 1.0.0 (2026-10-21)
+  Changes :
+    1.0.0 (2026-10-21) - Synthetic test export (fictitious cell) for the
+                         1.1.0 rules: E-stop channels copied from inputs
+                         after the instruction (scan lag), ROUT driven via
+                         a copy with extra series logic and equal feedback,
+                         program-scope DINT bit bridging a device, standard
+                         permissive in series, timer presets '?' read from
+                         a TIMER array, off-delay outside device paths,
+                         always-on and inverse outputs, AFI without outputs,
+                         SafetyTagMap target written by the safety logic,
+                         standard writes via AOI output / ST / FBD, drive
+                         peripheral sub-module, ROUT with a start / seal-in
+                         on its own rung.
+  Import-Export
+  Version   := RSLogix 5000 v33.01
+  Owner     := Robert Pietroń, test
+  Note:  File encoded in UTF-8.
+**********************************************)
+IE_VER := 2.25;
+CONTROLLER ScanCell (ProcessorType := "5069-L320ERMS2",
+                     Major := 33,
+                     SafetyLocked := No,
+                     SafetyTagMap := " Std_Permit=S_Permit, Std_Coil=S_Coil, Std_Req=S_Req, Std_Fbd=S_Fbd, Std_None=S_None, Std_St=S_St",
+                     SafetyLevel := "SIL3/PLe")
+	MODULE Local (Parent := "Local",
+	              ParentModPortId := 1,
+	              CatalogNumber := "5069-L320ERMS2",
+	              Slot := 0)
+	END_MODULE
+	MODULE SafeIn_1 (Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "5069-IB8S/A",
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 1)
+			CONNECTION SafetyInput (Rate := 10000,
+			                        EventID := 0,
+			                        TimeoutMultiplier := 2,
+			                        NetworkDelayMultiplier := 200,
+			                        ReactionTimeLimit := 40.064,
+			                        Unicast := Yes)
+					InputData (COMMENT.PT00DATA := "-S1 E-stop ch.A",
+					           COMMENT.PT01DATA := "-S1 E-stop ch.B",
+					           COMMENT.PT02DATA := "-B2 door ch.A",
+					           COMMENT.PT03DATA := "-B2 door ch.B",
+					           COMMENT.PT04DATA := "-K1/-K2 feedback (series NC)",
+					           Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE SafeOut_2 (Parent := "Local",
+	                  ParentModPortId := 1,
+	                  CatalogNumber := "5069-OBV8S/A",
+	                  PortLabel := "RxBACKPLANE",
+	                  Slot := 2)
+			CONNECTION SafetyOutput (Rate := 20000,
+			                         EventID := 0,
+			                         TimeoutMultiplier := 2,
+			                         NetworkDelayMultiplier := 200,
+			                         ReactionTimeLimit := 40.064,
+			                         Unicast := Yes)
+					OutputData (Class := Safety) := [0];
+			END_CONNECTION
+	END_MODULE
+	MODULE Drive_1 (Parent := "Local",
+	                ParentModPortId := 2,
+	                CatalogNumber := "PowerFlex 755-EENET-CM-S1",
+	                PortLabel := "ENet",
+	                NodeAddress := "192.168.1.30",
+	                SafetyEnabled := 1)
+			CONNECTION CSafety_Output (Rate := 20000,
+			                           OutputSize := 1,
+			                           TimeoutMultiplier := 2,
+			                           NetworkDelayMultiplier := 200,
+			                           ReactionTimeLimit := 60.064,
+			                           OutputTagSuffix := "SO")
+					OutputData (Class := Safety) := [1];
+			END_CONNECTION
+	END_MODULE
+	MODULE $NoName (Parent := "Drive_1",
+	                ParentModPortId := 4,
+	                CatalogNumber := "RHINOBP-DRIVE-PERIPHERAL-MODULE",
+	                Slot := 4)
+	END_MODULE
+	MODULE Drive_HW (Parent := "Local",
+	                 ParentModPortId := 2,
+	                 CatalogNumber := "PowerFlex 525-EENET",
+	                 PortLabel := "ENet",
+	                 NodeAddress := "192.168.1.40")
+	END_MODULE
+	ADD_ON_INSTRUCTION_DEFINITION MotorCtl (Class := Standard,
+	                                        Revision := "1.0",
+	                                        Description := "Standard motor block")
+		PARAMETERS
+			EnableIn : BOOL (Usage := Input, RADIX := Decimal, Required := No, Visible := No) := 1;
+			EnableOut : BOOL (Usage := Output, RADIX := Decimal, Required := No, Visible := No) := 0;
+			Cmd : BOOL (Usage := Input, RADIX := Decimal, Required := Yes, Visible := Yes) := 0;
+			Run : BOOL (Usage := Output, RADIX := Decimal, Required := Yes, Visible := Yes) := 0;
+		END_PARAMETERS
+		ROUTINE Logic
+				N: XIC(Cmd)OTE(Run);
+		END_ROUTINE
+	END_ADD_ON_INSTRUCTION_DEFINITION
+	TAG
+		Std_Permit : BOOL (Description := "Run permit from the motor block", Class := Standard, RADIX := Decimal) := 0;
+		Std_Coil : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Std_Req : BOOL (Description := "Reset request", Class := Standard, RADIX := Decimal) := 0;
+		Std_Fbd : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Std_None : BOOL (Description := "Never written", Class := Standard, RADIX := Decimal) := 0;
+		Std_St : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		Run_Cmd : BOOL (Class := Standard, RADIX := Decimal) := 0;
+		IBN : DINT (Description := "Standard commissioning word", Class := Standard, RADIX := Decimal) := 0;
+		Motor1 : MotorCtl := [0];
+		S_Permit : BOOL (Class := Safety, RADIX := Decimal) := 0;
+		S_Coil : BOOL (Class := Safety, RADIX := Decimal) := 0;
+		S_Req : BOOL (Class := Safety, RADIX := Decimal) := 0;
+		S_Fbd : BOOL (Class := Safety, RADIX := Decimal) := 0;
+		S_None : BOOL (Class := Safety, RADIX := Decimal) := 0;
+		S_St : BOOL (Class := Safety, RADIX := Decimal) := 0;
+	END_TAG
+	PROGRAM StdProgram (MAIN := "MainRoutine",
+	                    MODE := 0,
+	                    DisableFlag := 0)
+		TAG
+		END_TAG
+		ROUTINE MainRoutine
+				N: MotorCtl(Motor1,Run_Cmd,Std_Permit);
+				N: XIC(Run_Cmd)OTE(Std_Req);
+				N: JSR(StLogic,0);
+				N: JSR(FbdLogic,0);
+		END_ROUTINE
+		ST_ROUTINE StLogic
+			'// written in structured text
+			'Std_St := Run_Cmd;
+		END_ST_ROUTINE
+		FBD_ROUTINE FbdLogic (SheetSize := "A4 - 210 x 297 mm",
+		                      SheetOrientation := Landscape)
+			SHEET (Description := "")
+				IREF  (ID := 0,
+				       X := 100,
+				       Y := 100,
+				       Operand := "Run_Cmd",
+				       HideDescription := No)
+				END_IREF
+				OREF  (ID := 1,
+				       X := 300,
+				       Y := 100,
+				       Operand := "Std_Fbd",
+				       HideDescription := No)
+				END_OREF
+				WIRE (FromID := 0, ToID := 1)
+			END_SHEET
+		END_FBD_ROUTINE
+	END_PROGRAM
+	PROGRAM SafetyProgram (Class := Safety,
+	                       MAIN := "MainRoutine",
+	                       MODE := 0,
+	                       DisableFlag := 0)
+		TAG
+			EStop_A : EMERGENCY_STOP (Description := "E-stop -S1") := [0];
+			Door_1 : REDUNDANT_INPUT (Description := "Door -B2") := [0];
+			K_Main : REDUNDANT_OUTPUT (Description := "Main contactors -K1/-K2") := [0];
+			IBN : DINT (Description := "Commissioning bits", RADIX := Decimal) := 1;
+			Ch_A : BOOL (Description := "Copy of E-stop ch.A", RADIX := Decimal) := 0;
+			Ch_B : BOOL (Description := "Copy of E-stop ch.B", RADIX := Decimal) := 0;
+			Zone_OK : BOOL (RADIX := Decimal) := 0;
+			Door_OK : BOOL (RADIX := Decimal) := 0;
+			K_En : BOOL (RADIX := Decimal) := 0;
+			Late_OK : BOOL (RADIX := Decimal) := 0;
+			Coil_Echo : BOOL (RADIX := Decimal) := 0;
+			Status_ToStd : BOOL (RADIX := Decimal) := 0;
+			Timers : TIMER[3] := [[0,0,0],[0,2500,0],[0,4000,0]];
+			Reset_Sto : BOOL (RADIX := Decimal) := 0;
+			Reset_Edge : BOOL (RADIX := Decimal) := 0;
+		END_TAG
+		ROUTINE MainRoutine
+				N: JSR(Logic,0);
+				N: JSR(Copies,0);
+				N: JSR(Outputs,0);
+				N: JSR(Late,0);
+		END_ROUTINE
+		ROUTINE Logic
+				N: XIC(S_Req)OSR(Reset_Sto,Reset_Edge);
+				N: ESTOP(EStop_A,MANUAL,Ch_A,Ch_B,Reset_Edge,0);
+				N: RIN(Door_1,AUTOMATIC,Local:1:I.Pt02Data,Local:1:I.Pt03Data,0,0);
+				N: XIC(EStop_A.O1)OTE(Zone_OK);
+				N: XIC(Door_1.O1)OTE(Door_OK);
+				N: XIC(Zone_OK)[XIC(Reset_Edge) ,XIC(K_Main.O1) ]ROUT(K_Main,NEGATIVE,Zone_OK,Local:1:I.Pt04Data,Local:1:I.Pt04Data,Reset_Edge);
+				N: XIC(K_Main.O1)OTE(K_En);
+				N: XIC(Late_OK)OTE(Local:2:O.Pt07Data);
+				N: XIC(Zone_OK)OTE(S_Coil);
+		END_ROUTINE
+		ROUTINE Copies
+				N: XIC(Local:1:I.Pt00Data)OTE(Ch_A);
+				N: XIC(Local:1:I.Pt01Data)OTE(Ch_B);
+		END_ROUTINE
+		ROUTINE Outputs
+				N: XIC(K_En)XIC(Door_OK)[OTE(Local:2:O.Pt00Data) ,OTE(Local:2:O.Pt01Data) ];
+				N: XIC(S_Permit)XIC(Zone_OK)OTE(Local:2:O.Pt02Data);
+				N: XIC(Zone_OK)[XIC(Door_OK) ,XIC(IBN.0) ]OTE(Local:2:O.Pt03Data);
+				N: XIC(Zone_OK)TOF(Timers[1],?,?);
+				N: XIC(Timers[1].DN)OTE(Drive_1:SO.SafeTorqueOff);
+				N: XIO(S_Fbd)TOF(Timers[2],?,?);
+				N: XIC(Timers[2].DN)XIC(Door_OK)OTE(Local:2:O.Pt04Data);
+				N: OTE(Local:2:O.Pt05Data);
+				N: XIO(Zone_OK)OTE(Local:2:O.Pt06Data);
+				N: XIC(S_St)XIC(S_None)XIC(Zone_OK)OTE(Status_ToStd);
+				N: XIC(S_Coil)OTE(Coil_Echo);
+				N: AFI()NOP();
+		END_ROUTINE
+		ROUTINE Late
+				N: XIC(Door_OK)OTE(Late_OK);
+		END_ROUTINE
+	END_PROGRAM
+	TASK MainTask (Type := CONTINUOUS,
+	               Class := Standard,
+	               Rate := 10,
+	               Priority := 10,
+	               Watchdog := 500)
+			StdProgram;
+	END_TASK
+	TASK SafetyTask (Type := PERIODIC,
+	                 Class := Safety,
+	                 Rate := 20,
+	                 Priority := 10,
+	                 Watchdog := 20)
+			SafetyProgram;
+	END_TASK
+END_CONTROLLER

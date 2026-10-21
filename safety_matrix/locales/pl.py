@@ -2,10 +2,15 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/locales/pl.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: teksty polskie (te same klucze
 #                        co katalog angielski).
+#   1.1.0 (2026-10-21) - Texts of the new audit rules (SafetyTagMap target written,
+#                        copied / computed channels, scan-order lag, EDM, ROUT
+#                        extra logic, always-on / inverse outputs, AFI without
+#                        outputs, timers outside device paths), constant bypass,
+#                        ROUT/CROUT restart with a start / seal-in on its rung.
 # =============================================================================
 """Teksty polskie."""
 
@@ -57,6 +62,8 @@ TEXT = {
     'w.conditions': 'Chyba że (warunek wewnętrzny / muting): {bits}',
     'w.partners': 'Wyłącza dopiero razem z: {devs}',
     'w.delay': 'Timer opóźnionego wyłączenia w ścieżce: {ms} ms (kategoria zatrzymania 1)',
+    'w.constbypass': 'Zmostkowane stałym stykiem (wartość początkowa 1, nigdy nie zapisywany): {bits}',
+    'w.lag': 'Kolejność wykonania: +{n} okres(y) SafetyTask = {ms} ms (wartość z poprzedniego cyklu)',
     'src.const': '{op} = stała {v}',
     'src.never': '{op} – nigdy niezapisywany (nieużywany)',
     'src.literal': 'stała {v}',
@@ -78,7 +85,9 @@ TEXT = {
     'code.XM.full': 'Wyłącza wyjście, ale warunek wewnętrzny SafetyTask (instrukcja mutingu, porównanie, przełącznik trybu, dane lub bit zatrzaskowy) '
                     'może je podtrzymać. Warunek: komentarz komórki / „Ścieżki C&E”. [DO WERYFIKACJI]',
     'code.N.short': 'W logice, ale niefunkcjonalne – nigdy nie zadziała  [ALARM]',
-    'code.N.full': 'Urządzenie jest w ścieżce logicznej, ale instrukcja ma stałe wejścia kanałów – nigdy nie wyłączy wyjścia. [ALARM KRYTYCZNY]',
+    'code.N.full': 'Urządzenie jest w ścieżce logicznej, ale nigdy nie wyłączy wyjścia: instrukcja ma stałe wejścia '
+                   'kanałów albo urządzenie jest zmostkowane stałym stykiem (tag o wartości początkowej 1, którego '
+                   'logika nigdy nie zapisuje). [ALARM KRYTYCZNY]',
     'code.S.short': 'Info: sygnał do sterowania std (nie wyjście bezpieczne)',
     'code.S.full': 'Kolumna informacyjna: stan przekazywany do sterowania STANDARDOWEGO (np. interlock do innej maszyny). Nie jest wyjściem bezpiecznym.',
     'code.SB.short': 'Jak S, z możliwym obejściem ze sterowania std',
@@ -237,6 +246,7 @@ TEXT = {
     'rs.none': 'brak (bez podtrzymania – podąża za logiką)',
     'rs.so_reset': '  + rung SO.Reset ({rung})',
     'restart.rout': 'AUTO – wyjście ROUT/CROUT podąża za Enable (reset urządzeń = restart)',
+    'restart.rout_seal': 'RĘCZNY – rung ROUT/CROUT ma start / podtrzymanie: ponowne załączenie tylko przez {tags}',
     'restart.auto': 'AUTO – sygnał poziomowy w gałęzi podtrzymania: {tags}',
     'restart.manual': 'MANUAL – zbocze resetu + podtrzymanie',
     'restart.follow': 'podąża za logiką',
@@ -293,9 +303,10 @@ TEXT = {
     'f.equal_channels': 'Oba kanały instrukcji {instr} {tag} wskazują to samo wejście {ch} – brak redundancji i wykrywania rozbieżności; funkcja de facto '
                         '1-kanałowa (dotyczy {n} wyjść bezpiecznych).',
     'f.equal_channels.rec': 'Podłączyć kanał B do osobnego wejścia i poprawić operand; zweryfikować okablowanie czujnika.',
-    'f.afi': 'Instrukcja AFI (Always False) w {rung} – rung trwale wyłączony.',
+    'f.afi': 'Instrukcja AFI (Always False) w {rung} – rung trwale wyłączony; na stałe wyłącza: {outputs}.',
     'f.afi.rec': 'Usunąć AFI lub udokumentować powód wyłączenia rungu; sprawdzić, czy żadna funkcja bezpieczeństwa od niego nie zależy.',
-    'f.const_branch': 'Gałąź złożona wyłącznie ze stałych styków ({consts}) jest zawsze prawdziwa i mostkuje logikę {tag}.',
+    'f.const_branch': 'Gałąź złożona wyłącznie ze stałych styków ({consts}) jest zawsze prawdziwa i mostkuje logikę '
+                      '{tag}. Zmostkowane urządzenia: {devices}.',
     'f.const_branch.rec': 'Usunąć mostkującą gałąź lub zastąpić stałą rzeczywistym warunkiem bezpieczeństwa.',
     'f.reset_std_auto': 'Bit resetu {bit} jest generowany automatycznie (zatrzaskiwany w sekwencji standardowej lub zapisywany przez sam SafetyTask) i resetuje: {resets}. '
                         'Źródło: {src}. Reset bez świadomego działania operatora.',
@@ -319,10 +330,12 @@ TEXT = {
     'f.aux_no_device': 'Wyjście bezpieczne {tag} nie jest wyłączane przez żadne urządzenie wejściowe safety (logika: {expr}) – np. odblokowanie rygla lub lampka. '
                        'Sprawdzić funkcję i jej warunki.',
     'f.aux_not_energized': 'Wyjście bezpieczne {tag} nie jest załączone w stanie gotowości (logika: {expr}) – pominięte w macierzy; sprawdzić funkcję.',
-    'f.crtl_inputs': 'Wejścia safety {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier {ndm} % → Input CRTL {crtl} ms. '
-                     'Najgorszy czas reakcji samej logiki (Input CRTL + filtr LC + okres zadania {period} ms + watchdog {watchdog} ms + Output CRTL) '
-                     'do {total} ms – bez czasu czujnika i zatrzymania. Urządzenia: {devices}. Zweryfikować z oceną ryzyka i odległościami bezpieczeństwa '
-                     '(ISO 13855); szczegóły: arkusz „Funkcje PL”.',
+    'f.crtl_inputs': 'Wejścia safety {adapter}: RPI {rpi} ms, Timeout Multiplier {tm}, Network Delay Multiplier '
+                     '{ndm} % → Input CRTL {crtl} ms. Najgorszy czas reakcji samej logiki (Input CRTL + filtr LC + '
+                     'okres zadania {period} ms + watchdog {watchdog} ms + Output CRTL) do {total} ms – bez czasu '
+                     'czujnika i zatrzymania. Urządzenia: {devices}. Zweryfikować z oceną ryzyka i odległościami '
+                     'bezpieczeństwa (ISO 13855); szczegóły: arkusz „Funkcje PL”. Uwzględnione opóźnienie z '
+                     'kolejności wykonania: {lags} × okres zadania.',
     'f.crtl_outputs': 'Moduły wyjść safety {modules}: RPI {rpi} ms, TM {tm}, NDM {ndm} % → Output CRTL {crtl} ms.',
     'f.crtl_drives': 'Połączenia wyjściowe CIP Safety napędów: RPI {rpi} ms, TM {tm}, NDM {ndm} % → CRTL {crtl} ms dla: {modules}.',
     'f.osf_ote': 'OSF/OSR i OTE na tym samym tagu {tag} w jednym rungu – OTE nadpisuje impuls zbocza poziomem (reset poziomem zamiast zboczem).',
@@ -334,7 +347,9 @@ TEXT = {
                           'nie jest możliwy, gdy osoba przebywa w strefie zagrożenia (ISO 13849-1 §5.2.2, ISO 14119).',
     'f.reset_std': 'Reset ze sterowania standardowego: bit {bit} resetuje {resets}. Źródło: {src}. Sprawdzić lokalizację i widoczność przycisku resetu '
                    '(reset ręczny poza strefą zagrożenia, ISO 13849-1 §5.2.2).',
-    'f.std_not_written': 'Bit mapowany ze std {bit} jest czytany w SafetyTask, ale w kodzie standardowym nie znaleziono zapisu do {src}.',
+    'f.std_not_written': 'Bit mapowany ze std {bit} jest czytany w SafetyTask, ale w kodzie standardowym nie '
+                         'znaleziono zapisu do {src}. Mógłby go ustawić tylko panel HMI/SCADA, instrukcja MSG lub '
+                         'zmiana online.',
     'f.missing_comments': 'Brak komentarzy kanałów I/O w {module} ({channels}) – przypisanie {who} wyłącznie na podstawie nazw tagów.',
     'f.free_cmp': 'Porównanie {leaf} w logice {effects} – przyjęto {value} w stanie gotowości; wynik zależy od danych.',
     'f.free_data': 'Bit zależny od danych {leaf} (zapisywany instrukcją danych) w logice {effects} – przyjęto {value} w stanie gotowości.',
@@ -354,11 +369,71 @@ TEXT = {
     'f.jsr_conditional': 'Rutyna {routine} jest wywoływana warunkowo – wyjścia w niej zachowują stan, gdy nie jest wykonywana.',
     'f.pair_mismatch': 'Wyjścia {a} i {b} instrukcji {tag} mają w logice różne przyczyny – sprawdzić okablowanie obu kanałów.',
     'f.loads': 'Kod nie definiuje, co jest zasilane z wyjść {outputs} (styczniki / sprzętowe STO / zawory) – potwierdzić na schematach elektrycznych.',
-    'f.stop_cat0': 'Brak timerów opóźnionego wyłączenia w SafetyTask → wszystkie funkcje realizują zatrzymanie kategorii 0 (STO / odpadnięcie stycznika). '
-                   'Dla maszyn o dużej bezwładności rozważyć SS1 zgodnie z oceną ryzyka.',
-    'f.stop_cat1': 'Timery opóźnionego wyłączenia w SafetyTask: {timers} – wyjścia za nimi zatrzymują się w kategorii 1 (SS1); sprawdzić opóźnienie względem czasu zatrzymania.',
+    'f.stop_cat0': 'Żaden timer opóźnionego wyłączenia nie leży na ścieżce urządzenie safety → wyjście, więc wszystkie '
+                   'funkcje bezpieczeństwa realizują zatrzymanie kategorii 0 (STO / odpadnięcie stycznika). Dla '
+                   'maszyn o dużej bezwładności rozważyć SS1 zgodnie z oceną ryzyka.',
+    'f.stop_cat1': 'Timery opóźnionego wyłączenia na ścieżkach urządzenie safety → wyjście: {timers} – wyjścia '
+                   '{effects} zatrzymują się w kategorii 1 (SS1); sprawdzić opóźnienie względem czasu zatrzymania.',
     'f.forces': 'Stan Force nie jest zapisywany w eksporcie – sprawdzić zakładkę Forces dla tagów safety online w Studio 5000.',
     'f.completeness': 'Analizowany plik {src}; wykonywane rutyny i liczby rungów: {routines}. Potwierdzić liczby rungów w Studio 5000.',
+    'f.afi_noop': 'AFI (Always False) w {rung} na rungu bez instrukcji wyjściowych (np. tylko NOP) – obecnie bez '
+                  'wpływu na logikę, ale to wyłączony rung w zadaniu bezpieczeństwa.',
+    'f.afi_noop.rec': 'Usunąć rung lub udokumentować jego cel; upewnić się, że nie miała tu być funkcja '
+                      'bezpieczeństwa.',
+    'f.map_written': 'Tag safety {tag} jest celem SafetyTagMap (ze standardowego {src}) i jednocześnie jest '
+                     'zapisywany przez logikę safety w {writers}. Wartość ze sterowania standardowego jest kopiowana '
+                     'na początku każdego cyklu zadania bezpieczeństwa, a potem nadpisywana – mapowanie nic nie daje '
+                     'i wprowadza w błąd.',
+    'f.map_written.rec': 'Usunąć mapowanie lub użyć osobnego tagu safety dla wyniku logiki; udokumentować, które '
+                         'źródło jest zamierzone.',
+    'f.map_read_before_write': 'Tag safety {tag} jest mapowany ze standardowego {src} (SafetyTagMap) i zapisywany '
+                               'przez logikę safety w {writers}, ale jest czytany wcześniej w cyklu w {readers} – '
+                               'tam jego wartość pochodzi ze sterowania STANDARDOWEGO.',
+    'f.map_read_before_write.rec': 'Usunąć mapowanie lub przenieść zapis safety przed każdy odczyt; wartość ze '
+                                   'sterowania standardowego nie może wpływać na funkcję bezpieczeństwa.',
+    'f.aux_always_on': 'Wyjście bezpieczne {tag} jest załączone bezwarunkowo (logika: {expr}) – żadne urządzenie '
+                       'safety go nie wyłącza (np. zasilanie czujnika lub źródło testowe).',
+    'f.aux_always_on.rec': 'Potwierdzić na schematach, co jest zasilane z tego wyjścia; nie może być do niego '
+                           'podłączony niebezpieczny odbiornik.',
+    'f.aux_inverse': 'Wyjście bezpieczne {tag} załącza się dopiero po wyzwoleniu {devices} (logika: {expr}) – '
+                     'lampka, zwolnienie rygla itp., nie wyjście funkcji bezpieczeństwa; nie jest pokazane w '
+                     'macierzy.',
+    'f.aux_inverse.rec': 'Sprawdzić funkcję; jeśli zwalnia rygiel osłony, zweryfikować warunki (postój, opóźnienie).',
+    'f.channel_copy': 'Kanały tych instrukcji to tagi pośrednie kopiowane z wejść fizycznych (XIC(wejście) '
+                      'OTE(kopia)): {devices}. Kopie są zapisywane przed instrukcją w cyklu; macierz, CRTL i '
+                      'komentarze I/O używają wejść fizycznych.',
+    'f.channel_copy.rec': 'Rungi kopiujące nie mogą mieć dodatkowych warunków; czytelniej jest użyć wejść fizycznych '
+                          'bezpośrednio w instrukcji.',
+    'f.channel_copy_late': 'Kanały tych instrukcji to tagi pośrednie kopiowane z wejść fizycznych, a rungi kopiujące '
+                           'wykonują się PO instrukcji w cyklu: {devices}. Instrukcja ocenia stan wejść z '
+                           'poprzedniego cyklu – czas reakcji rośnie o jeden okres SafetyTask ({period} ms).',
+    'f.channel_copy_late.rec': 'Przenieść rungi kopiujące przed instrukcje (kolejność JSR w MainRoutine) lub użyć '
+                               'wejść fizycznych bezpośrednio; uwzględnić dodatkowy okres w czasie reakcji.',
+    'f.channel_logic': 'Kanał {ch} instrukcji {instr} {tag} nie jest wejściem fizycznym, lecz tagiem wyliczanym '
+                       'przez logikę: {expr}. Redundancja i kontrola rozbieżności instrukcji dotyczą wtedy tej '
+                       'logiki, a nie czujnika.',
+    'f.channel_logic.rec': 'Podłączyć kanały fizyczne bezpośrednio do instrukcji lub uzasadnić logikę w koncepcji '
+                           'bezpieczeństwa.',
+    'f.scan_lag': 'Tag {tag} jest zapisywany w {writer}, ale czytany wcześniej w cyklu w {readers} – te rungi '
+                  'używają wartości z poprzedniego cyklu: +1 okres SafetyTask ({period} ms) w czasie reakcji dla: '
+                  '{effects}.',
+    'f.scan_lag.rec': 'Zmienić kolejność rutyn / rungów tak, aby tag był zapisywany przed odczytem, lub uwzględnić '
+                      'dodatkowy okres w czasie reakcji.',
+    'f.edm_same_channel': 'Oba wejścia sprzężenia zwrotnego {instr} {tag} używają tego samego kanału {ch} – styki '
+                          'pomocnicze obu styczników są połączone szeregowo do jednego wejścia; uszkodzenie tego '
+                          'jednego wejścia lub przewodu nie jest wykrywane przez EDM.',
+    'f.edm_same_channel.rec': 'Sprawdzić, czy spełnia to wymaganą kategorię / PL; w przeciwnym razie podłączyć każde '
+                              'sprzężenie do osobnego wejścia.',
+    'f.rout_extra_logic': 'Wyjścia {outputs} instrukcji {instr} {tag} są wyłączane także przez {devices}, które nie '
+                          'działają przez zezwolenie {instr}. Gdy zadziała tylko któreś z nich, wyjścia gasną, a '
+                          '{tag}.O1 pozostaje załączone – sprzężenie zwrotne przestaje się zgadzać, {tag} zgłasza '
+                          'błąd sprzężenia (wymagany reset), a EDM nie nadzoruje tej ścieżki wyłączenia.',
+    'f.rout_extra_logic.rec': 'Włączyć te warunki do zezwolenia {tag}, aby każda ścieżka wyłączenia przechodziła '
+                              'przez nadzorowaną instrukcję.',
+    'f.timer_other': 'Timer opóźnionego wyłączenia {tag} ({instr}, preset {preset} ms) nie leży na ścieżce '
+                     'urządzenie safety → wyjście: opóźnia warunek {cond}; używany przez: {users}. To nie jest '
+                     'kategoria zatrzymania 1 funkcji bezpieczeństwa (np. opóźnienie rygla lub zwolnienia).',
+    'f.timer_other.rec': 'Jeśli zwalnia rygiel osłony, zweryfikować opóźnienie względem czasu wybiegu maszyny.',
     # ------------------------------------------------------------------ arkusz Legenda
     'l.title': 'LEGENDA OZNACZEŃ I METODA',
     'l.s1': '1. KODY W KOMÓRKACH MACIERZY', 'l.s2': '2. ODCZYT MACIERZY', 'l.s3': '3. OZNACZENIA URZĄDZEŃ (ID)', 'l.s4': '4. STREFY',
@@ -416,6 +491,7 @@ TEXT = {
     'sf.n.crtl': 'Input CRTL ≥ {ms} ms – patrz Raport walidacyjny (PRIORYTET).',
     'sf.n.std': 'Sygnał ze sterowania standardowego – czas reakcji nieokreślony.',
     'sf.n.delay': 'Opóźnione wyłączenie w ścieżce: {ms} ms (kategoria 1) – doliczyć do czasu reakcji.',
+    'sf.n.lag': 'Kolejność wykonania dodaje {n} okres(y) SafetyTask ({ms} ms) – uwzględnione w kolumnie zadania.',
     'sf.only_xc': 'tylko z partnerem (XC): {effs}',
     'sf.cf_note': 'Czerwone tło sumy: > 1000 ms; żółte: 500–1000 ms (formatowanie warunkowe). Suma liczy się automatycznie po wpisaniu opóźnień urządzeń.',
     # ------------------------------------------------------------------ Protokół testów
@@ -430,6 +506,8 @@ TEXT = {
     't.act.mute': 'Muting nieaktywny.',
     't.act.disc': '2) Test rozbieżności: przy urządzeniu w stanie OK rozewrzyj tylko kanał A ({a}), potem tylko kanał B ({b}).',
     't.exp.n': 'BRAK zadziałania – instrukcja ma w kodzie stałe wejścia ({rung}); wyjścia pozostają załączone. [ALARM KRYTYCZNY]',
+    't.exp.nconst': 'BRAK wyłączenia dla {outs} – urządzenie jest zmostkowane stałym stykiem {bits}; te wyjścia '
+                    'pozostają załączone. [ALARM KRYTYCZNY]',
     't.exp.off': '1) Wyłączone: {outs}',
     't.exp.sto': ' (napędy: :SI.TorqueDisabled = 1)',
     't.exp.rest': '. Pozostałe wyjścia bez zmian.',

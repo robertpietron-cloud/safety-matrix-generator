@@ -3,12 +3,14 @@
 Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 File    : README.md
 Author  : Robert Pietroń
-Revision: 1.1.0 (2026-10-18)
+Revision: 1.2.0 (2026-10-21)
 Changes :
   1.0.0 (2026-10-18) - First universal release: description, installation,
                        usage, configuration, method, rules, limitations (EN/PL).
   1.1.0 (2026-10-18) - Manual GitHub Actions runs (Generate Safety Matrix,
                        tests); status badge.
+  1.2.0 (2026-10-21) - Generator 1.1.0: copied channels, scan-order lag,
+                       constant bypass, new audit rules, ST/FBD/SFC writers.
 =============================================================================
 -->
 
@@ -160,25 +162,30 @@ A complete real-life example (four languages, 33 devices, 31 outputs) is in
    comparisons). A safety input instruction (`ESTOP`, `RIN`, `LC`, `DCS`, `DCST`, `SMAT`, …) is a **cause**; its `.O1`
    is the device state (LC mute input and TSAM/TSSM/FSBM muting included). Outputs (**effects**) are the safety outputs
    written in the SafetyTask (`ROUT`/`CROUT` pairs as one column), CIP Safety drive outputs (`:SO.SafeTorqueOff`,
-   SS1/SBC/SLS requests) and configured information bits.
+   SS1/SBC/SLS requests) and configured information bits. Instruction channels that are plain copies of inputs
+   (`XIC(input) OTE(copy)`) are followed back to the physical channel (module, CRTL, I/O comment, equal-channel check);
+   outputs driven by a `ROUT`/`CROUT` through such copies are grouped under the instruction.
 4. **Healthy state** – all devices healthy, standard-mapped bits and other free conditions at 0 (or at the smallest set
    needed to energise the output); never-written tags take their initial value; seal-in contacts are assumed on.
 5. **Cells** – for every device in the logic cone of an output: trip the device → output off? (`X`); restored by a
    standard bit (`XB`) or by an internal condition (`XM`); off only together with another device (`XC`); then
-   `N` / `X1` for constant / single-channel devices. The full rung path of every cell is stored. **No link is ever
-   derived from tag-name similarity.**
+   `N` / `X1` for constant / single-channel devices – `N` also when the device is bridged by a constant contact (a tag
+   with initial value 1 that the logic never writes, e.g. a forgotten commissioning bit). The full rung path of every
+   cell is stored, including the **scan-order lag** (a tag read before it is written in the scan = +1 task period).
+   **No link is ever derived from tag-name similarity.**
 6. **Metadata** – reset type and reset sources (traced one level into the standard code through the SafetyTagMap),
    EDM feedback, restart behaviour (seal-in analysis), stop category (off-delay timers in the path → category 1 with
-   the preset), reaction-time data per device.
+   the preset; `?` presets of L5K exports are read from the TIMER tag value), reaction-time data per device (incl.
+   scan-order lag).
 7. **Audit** – rules below; each finding carries routine and rung numbers.
 
 ### Audit rules
 
 | Severity | Rule |
 |---|---|
-| **ALARM** | constant channel inputs · channels from standard tags · standard bit bypassing a device (XB) · muting driven from standard control · standard bit alone energising a safety output · E-stop with automatic reset · both channels on the same input · AFI · constant branch bridging logic · reset generated automatically (latched in a standard sequence / written by the SafetyTask) |
+| **ALARM** | constant channel inputs · channels from standard tags · standard bit bypassing a device (XB) · muting driven from standard control · standard bit alone energising a safety output (with all devices tripped) · E-stop with automatic reset · both channels on the same input · AFI (also on a rung without outputs) · constant contact / branch bridging a device · reset generated automatically (latched in a standard sequence / written by the SafetyTask) |
 | **DEAD** | devices without effect on safety outputs · unused muting blocks · constant (never written) tags · unused safety tags · unused safety I/O channels · uncalled routines · safety modules / drives not used · drives without CIP Safety |
-| **VERIFY** | input / output / drive CRTL (PRIORITY above the threshold) · OSF/OSR + OTE on one tag · multiple OTE · ROUT reset conditioned by another `.FP` · OR-connected devices · automatic restart via seal-in · automatic reset of guards · resets from standard control · standard bits never written · missing I/O comments · data / comparison / latch conditions · direct safety inputs · heuristic operand mapping · protected / non-ladder routines, AOIs, JMP/MCR, unknown instructions, conditional JSR · ROUT channel mismatch · loads of outputs · stop category · forces · completeness |
+| **VERIFY** | input / output / drive CRTL (PRIORITY above the threshold, scan-order lag included) · channels copied from inputs (late copies = +1 scan) or computed by logic · tags read before they are written in the scan · SafetyTagMap destination also written by the safety logic · ROUT/CROUT with both feedbacks on one input · ROUT/CROUT outputs switched by logic outside the instruction enable · OSF/OSR + OTE on one tag · multiple OTE · ROUT reset conditioned by another `.FP` · OR-connected devices · automatic restart via seal-in · automatic reset of guards · resets from standard control · standard bits never written (writes searched in ladder incl. AOI Output/InOut parameters and data instructions, ST, FBD and SFC actions) · outputs always on / energised only on a trip / without a device · missing I/O comments · data / comparison / latch conditions · direct safety inputs · heuristic operand mapping · protected / non-ladder routines, AOIs, JMP/MCR, unknown instructions, conditional JSR · ROUT channel mismatch · loads of outputs · stop category, off-delay timers outside device paths · forces · completeness |
 
 ### Supported instructions
 
@@ -194,7 +201,8 @@ metadata does – which is why inferred mappings are reported.
 
 ## Limitations
 
-* Only **ladder (RLL)** routines are analysed; ST/FBD/SFC and source-protected routines/AOIs are reported, not analysed.
+* Only **ladder (RLL)** routines of the safety task are analysed; ST/FBD/SFC and source-protected routines/AOIs are
+  reported, not analysed. In the standard programs ST/FBD/SFC code is searched only for writes of SafetyTagMap sources.
 * Steady-state analysis: one-shot pulses are 0, timers are evaluated at their final state, seal-ins are on.
   Sequencing, discrepancy timing and reset edges are covered by the generated test record, not by the matrix.
 * Several OTE coils on one tag: the last one in the scan wins (reported).
@@ -242,7 +250,10 @@ i ścieżek oraz **raport walidacyjny** (alarmy krytyczne, martwe elementy, pozy
 i numerem rungu). Teksty w czterech językach (PL, EN, FR, DA) z przełącznikiem na arkuszu *Start*.
 
 Zasady analizy: każde skrzyżowanie wynika ze ścieżki logicznej w kodzie (symulacja boolowska rungów w kolejności
-skanowania, z rozwinięciem JSR i bloków AOI) – nigdy z podobieństwa nazw tagów. EDM i przyciski resetu są metadanymi,
+skanowania, z rozwinięciem JSR i bloków AOI) – nigdy z podobieństwa nazw tagów. Kanały będące kopiami wejść
+(`XIC(wejście) OTE(kopia)`) są śledzone do wejścia fizycznego, a odczyt tagu przed jego zapisem w cyklu jest liczony
+jako dodatkowy okres zadania w czasie reakcji. Styk o stałej wartości 1 (np. pozostawiony bit uruchomieniowy)
+mostkujący urządzenie daje w macierzy kod `N` i alarm krytyczny. EDM i przyciski resetu są metadanymi,
 nie przyczynami. Bity z `SafetyTagMap` traktowane są jako sterowanie standardowe: jeśli mogą obejść funkcję
 bezpieczeństwa, komórka dostaje kod `XB`, a raport – alarm krytyczny.
 

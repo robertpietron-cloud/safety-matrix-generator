@@ -2,12 +2,14 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : safety_matrix/config.py
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - First universal release: optional YAML project
 #                        configuration (document data, languages, zones,
 #                        effect groups, device/effect overrides, analysis
 #                        options) and the presentation layout derived from it.
+#   1.1.0 (2026-10-21) - Device descriptions use the I/O comment of the physical
+#                        input behind a copied channel (or the copy's description).
 # =============================================================================
 """Project configuration (YAML) and matrix layout (zones, groups, IDs, descriptions)."""
 from __future__ import annotations
@@ -208,7 +210,9 @@ class Layout:
             if d.kind == 'instr':
                 tagobj = A.find_tag(t)
                 base = (tagobj.description if tagobj else '') or _first_line(A.rung_comment(d.loc))
-            ca, cb = A.io_comment(d.ch_a) if d.ch_a else '', A.io_comment(d.ch_b) if d.ch_b else ''
+            # physical channel behind an intermediate copy; else the description of the copy tag
+            ca = (A.io_comment(d.phys_a) or (A.describe(d.ch_a) if d.src_a else '')) if d.ch_a else ''
+            cb = (A.io_comment(d.phys_b) or (A.describe(d.ch_b) if d.src_b else '')) if d.ch_b else ''
             io = ' / '.join(x for x in dict.fromkeys([ca, cb]) if x)
             if d.kind != 'instr' and not io:
                 io = A.describe(t)

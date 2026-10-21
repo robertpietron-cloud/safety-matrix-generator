@@ -2,10 +2,11 @@
 # Project : Safety Matrix Generator (GuardLogix SafetyTask -> Cause & Effect)
 # File    : .gitignore
 # Author  : Robert Pietroń
-# Revision: 1.0.0 (2026-10-18)
+# Revision: 1.1.0 (2026-10-21)
 # Changes :
 #   1.0.0 (2026-10-18) - Python artefacts; customer PLC exports and generated
 #                        workbooks are never committed (demo files excepted).
+#   1.1.0 (2026-10-21) - Synthetic test export tests/data/ScanCell.L5K allowed.
 # =============================================================================
 __pycache__/
 *.py[cod]
@@ -27,6 +28,7 @@ venv/
 *.docx
 !examples/demo/DemoCell.L5K
 !tests/data/DemoCell.L5X
+!tests/data/ScanCell.L5K
 
 # generated output
 *.xlsx
